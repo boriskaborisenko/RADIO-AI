@@ -1,0 +1,23 @@
+{
+  "name": "radio-ai",
+  "version": "1.0.0",
+  "description": "Simple Suno M3U Playlist Generator and Express Server",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "generate": "node generator.js"
+  },
+  "keywords": [
+    "suno",
+    "m3u",
+    "playlist",
+    "express",
+    "radio"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}

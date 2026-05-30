@@ -1,0 +1,204 @@
+import express from 'express';
+import fs from 'fs/promises';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { config } from './config.js';
+import { buildPlaylist, getUserId, fetchSongs, generateM3U } from './generator.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const app = express();
+
+// Простой кэш в оперативной памяти для динамических запросов
+// Формат: key -> { content: string, expiresAt: number }
+const playlistCache = new Map();
+
+/**
+ * Очищает истекший кэш раз в 10 минут
+ */
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, value] of playlistCache.entries()) {
+    if (now > value.expiresAt) {
+      playlistCache.delete(key);
+    }
+  }
+}, 1000 * 60 * 10);
+
+// Настройка CORS заголовков, чтобы веб-плееры могли читать плейлист напрямую из браузера
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  next();
+});
+
+// Маршрут для отдачи плейлиста
+app.get('/radio', async (req, res) => {
+  // Получаем параметры из строки запроса (если переданы)
+  const usernameParam = req.query.username || req.query.usernames || req.query.user;
+  const loopParam = req.query.loop || req.query.repeat;
+  const sortParam = req.query.sort || req.query.sortBy;
+  const shuffleParam = req.query.shuffle || req.query.random;
+
+  // Устанавливаем правильный Content-Type для M3U плейлистов
+  res.setHeader('Content-Type', 'audio/x-mpegurl; charset=utf-8');
+
+  // Если переданы кастомные query-параметры, генерируем плейлист на лету
+  if (usernameParam) {
+    const loopCount = loopParam ? parseInt(loopParam, 10) : config.loopCount;
+    const sortBy = sortParam || config.sortBy;
+    const shuffle = shuffleParam !== undefined ? shuffleParam === 'true' : config.shuffle;
+    
+    // Превращаем строку с пользователями (возможно, через запятую) в массив
+    const usersArray = usernameParam.split(',').map(u => u.trim()).filter(Boolean);
+    const sortedUsersStr = [...usersArray].sort().join(',');
+
+    const cacheKey = `${sortedUsersStr.toLowerCase()}-${loopCount}-${sortBy}-${shuffle}`;
+    const cached = playlistCache.get(cacheKey);
+    const now = Date.now();
+
+    if (cached && now < cached.expiresAt) {
+      console.log(`[Server] Отдача плейлиста из кэша для [${usersArray.join(', ')}] (Рандомизация: ${shuffle}, зацикливание: ${loopCount})`);
+      return res.send(cached.content);
+    }
+
+    console.log(`[Server] Динамический запрос для [${usersArray.join(', ')}] (Зацикливание: ${loopCount}, рандомизация: ${shuffle}, сортировка: ${sortBy}). Генерация...`);
+    
+    try {
+      let allSongs = [];
+      
+      // Собираем песни со всех аккаунтов на лету
+      for (const username of usersArray) {
+        try {
+          const userId = await getUserId(username);
+          const userSongs = await fetchSongs(userId, sortBy);
+          allSongs.push(...userSongs);
+        } catch (userError) {
+          console.error(`[Server] Ошибка при сборе треков для @${username}:`, userError.message);
+        }
+      }
+
+      if (allSongs.length === 0) {
+        res.status(404);
+        return res.send(`#EXTM3U\n# Ошибка: Не найдено публичных песен для аккаунтов [${usersArray.join(', ')}].`);
+      }
+
+      // Удаляем дубликаты
+      const uniqueSongsMap = new Map();
+      for (const song of allSongs) {
+        if (song.id) {
+          uniqueSongsMap.set(song.id, song);
+        }
+      }
+      const uniqueSongs = Array.from(uniqueSongsMap.values());
+
+      const m3uContent = generateM3U(uniqueSongs, loopCount, usersArray, shuffle);
+      
+      // Сохраняем в кэш
+      playlistCache.set(cacheKey, {
+        content: m3uContent,
+        expiresAt: now + config.cacheTTL
+      });
+
+      return res.send(m3uContent);
+    } catch (error) {
+      console.error(`[Server] Ошибка при динамической генерации для [${usersArray.join(', ')}]:`, error.message);
+      res.status(500);
+      return res.send(`#EXTM3U\n# Ошибка генерации: ${error.message}`);
+    }
+  }
+
+  // Если параметров нет, отдаем статический файл 'radio' из корня проекта
+  const staticPlaylistPath = path.join(__dirname, 'radio');
+  
+  try {
+    // Проверяем существование статического файла
+    await fs.access(staticPlaylistPath);
+    console.log(`[Server] Отдача статического файла плейлиста 'radio'`);
+    
+    const content = await fs.readFile(staticPlaylistPath, 'utf-8');
+    return res.send(content);
+  } catch (error) {
+    // Если файла нет, автоматически собираем его для пользователей по умолчанию при первом запросе
+    console.log(`[Server] Статический файл 'radio' не найден. Автоматическая генерация для [${config.defaultUsernames.join(', ')}]...`);
+    
+    try {
+      const generatedPath = await buildPlaylist(config.defaultUsernames, config.loopCount, config.sortBy, config.shuffle);
+      const content = await fs.readFile(generatedPath, 'utf-8');
+      return res.send(content);
+    } catch (genError) {
+      console.error(`[Server] Не удалось автосгенерировать плейлист при старте:`, genError.message);
+      res.status(500);
+      return res.send(`#EXTM3U\n# Ошибка автогенерации: ${genError.message}`);
+    }
+  }
+});
+
+// Страница приветствия на корневом адресе
+app.get('/', (req, res) => {
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(`
+    <html>
+      <head>
+        <title>Suno AI M3U Radio Server</title>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; max-width: 800px; margin: 40px auto; padding: 0 20px; background-color: #121214; color: #e1e1e6; }
+          h1 { color: #04d361; border-bottom: 1px solid #29292e; padding-bottom: 10px; }
+          code { background-color: #202024; padding: 4px 8px; border-radius: 4px; color: #ff79c6; font-size: 0.9em; }
+          pre { background-color: #202024; padding: 15px; border-radius: 8px; overflow-x: auto; border: 1px solid #29292e; }
+          a { color: #8b5cf6; text-decoration: none; }
+          a:hover { text-decoration: underline; }
+          .card { background-color: #202024; border: 1px solid #29292e; border-radius: 8px; padding: 20px; margin-top: 20px; }
+          .highlight { color: #04d361; font-weight: bold; }
+        </style>
+      </head>
+      <body>
+        <h1>Suno AI Radio Server 📻</h1>
+        <p>Ваш сервер запущен и готов к раздаче плейлиста!</p>
+        
+        <div class="card">
+          <h3>🔗 Ссылка на плейлист по умолчанию (${config.defaultUsernames.map(u => '@' + u).join(', ')}):</h3>
+          <p><a href="/radio" target="_blank" class="highlight">http://localhost:${config.port}/radio</a></p>
+        </div>
+
+        <div class="card">
+          <h3>⚡ Динамические возможности (на лету):</h3>
+          <p>Вы можете сгенерировать плейлист для <strong>одного или нескольких</strong> пользователей Suno, просто передав их через запятую в параметре:</p>
+          <ul>
+            <li>Плейлист для одного юзера: <br><code>/radio?username=ИМЯ_ЮЗЕРА</code></li>
+            <li>Плейлист для нескольких авторов вместе: <br><code>/radio?username=kinkypanda,another_user</code></li>
+            <li>Задать зацикливание (повторить песни 10 раз): <br><code>/radio?username=kinkypanda&loop=10</code></li>
+            <li>Включить или отключить перемешивание (shuffle): <br><code>/radio?username=kinkypanda&shuffle=true</code> или <code>/radio?username=kinkypanda&shuffle=false</code></li>
+            <li>Сортировка по новизне (вместо популярности): <br><code>/radio?username=kinkypanda&sort=created_at</code></li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>🔌 Как запустить во внешний мир с ngrok:</h3>
+          <pre>ngrok http ${config.port}</pre>
+          <p>После этого используйте выданную ссылку формата <code>https://xxxx.ngrok-free.app/radio</code> в любом IPTV-плеере, VLC, Kodi или OttPlayer!</p>
+        </div>
+      </body>
+    </html>
+  `);
+});
+
+// Запуск сервера
+app.listen(config.port, async () => {
+  console.log(`==================================================`);
+  console.log(`📻 Express сервер радио запущен на порту ${config.port}`);
+  console.log(`🔗 Локальный адрес плейлиста: http://localhost:${config.port}/radio`);
+  console.log(`==================================================`);
+  
+  // При старте проверяем наличие файла плейлиста, если его нет — создаем фоном для быстродействия первого запроса
+  const staticPlaylistPath = path.join(__dirname, 'radio');
+  try {
+    await fs.access(staticPlaylistPath);
+    console.log(`[Server] Найден готовый статический файл 'radio'. Он будет отдаваться по умолчанию.`);
+  } catch {
+    console.log(`[Server] Статический файл 'radio' отсутствует. Запуск фоновой предварительной генерации...`);
+    buildPlaylist(config.defaultUsernames, config.loopCount, config.sortBy, config.shuffle)
+      .then(() => console.log(`[Server] Фоновая генерация завершена. Файл 'radio' успешно создан.`))
+      .catch((err) => console.error(`[Server] Ошибка фоновой генерации при старте:`, err.message));
+  }
+});
