@@ -1,180 +1,181 @@
 # 📻 Suno AI M3U Playlist Generator & Express Server
 
-Этот проект представляет собой легкий, быстрый и удобный инструмент на Node.js для сбора публичных песен с аккаунтов **Suno.com** и создания M3U-плейлистов.
+This project is a lightweight, fast, and easy-to-use Node.js tool to collect public songs from **Suno.com** profiles and generate M3U playlists. 
 
-Проект разработан специально для того, чтобы:
-1. **Собрать плейлист** из всех публичных треков любого пользователя Suno.
-2. **Организовать бесконечный повтор (цикл)**.
-3. **Раздать плейлист** через встроенный Express-сервер по ссылке без расширения: `http://localhost:3333/radio` (удобно для выпуска в мир через **ngrok**).
-4. Либо работать в качестве **автономного генератора**, создающего статический файл плейлиста `radio`, который можно просто загрузить на свой хостинг.
+The project is designed to:
+1. **Compile a playlist** from all public tracks of any Suno user.
+2. **Organize infinite repeating (loops)**.
+3. **Host the playlist** via a built-in Express server, exposing it through a clean URL: `http://localhost:3333/radio` (ready to be tunneled via **ngrok**).
+4. Act as a **standalone generator**, producing a static `radio` playlist file that can be uploaded to any static web hosting.
 
 ---
 
-## 🛠️ Установка и подготовка
+## 🛠️ Installation and Configuration
 
-Убедитесь, что у вас установлена Node.js версии **18.0.0** или выше.
+Ensure you have Node.js version **18.0.0** or higher installed.
 
-1. Установите зависимости:
+1. Install dependencies in the root folder:
    ```bash
    npm install
    ```
 
-2. Настройте параметры по умолчанию в файле `config.js` (при необходимости):
-   - `defaultUsernames`: список аккаунтов Suno по умолчанию в виде массива строк (например, `['kinkypanda', 'another_user']`).
-   - `shuffle`: включает или отключает случайное перемешивание треков в эфире (`true` или `false`).
-   - `port`: порт Express-сервера (`3333`).
-   - `loopCount`: сколько раз продублировать треки в файле (для создания эффекта бесконечного воспроизведения).
-   - `sortBy`: сортировка (`upvote_count` — по лайкам, `created_at` — по новизне).
+2. Configure default settings in `config.js` (as needed):
+   - `defaultUsernames`: A list of default Suno usernames in an array (e.g., `['kinkypanda', 'another_user']`).
+   - `shuffle`: Enable or disable random track shuffling in the playlist (`true` or `false`).
+   - `port`: The port of the Express server (`3333`).
+   - `loopCount`: How many times the track list should repeat inside the playlist (used to simulate a continuous radio stream).
+   - `sortBy`: Default sorting option for Suno API requests (`upvote_count` for likes, `created_at` for new uploads).
 
 ---
 
-## 🚀 Режимы работы
+## 🚀 Modes of Operation
 
-### Режим 1. Запуск Express-сервера (Рекомендуемый)
+### Mode 1. Running the Express Server (Recommended)
 
-Этот режим запускает сервер, который раздает плейлист по адресу `http://localhost:3333/radio`.
+This mode starts a server that streams the M3U playlist dynamically at `http://localhost:3333/radio`.
 
 ```bash
 npm start
 ```
 
-* **Автогенерация при старте**: Если файл `radio` отсутствует, сервер автоматически соберет плейлист для пользователя по умолчанию (`kinkypanda`) при запуске.
-* **MIME-тип и CORS**: Сервер отдает плейлист с правильным заголовком `Content-Type: audio/x-mpegurl` и включенным CORS (`Access-Control-Allow-Origin: *`), что делает его совместимым с абсолютно всеми IPTV-плеерами и веб-плеерами в браузере.
+* **Autogeneration on Start**: If the `radio` playlist file is missing in the root directory, the server will automatically scrape and generate the playlist for the default users defined in `config.js`.
+* **MIME-Type & CORS**: The server serves playlists with the correct headers (`Content-Type: audio/x-mpegurl`) and CORS enabled (`Access-Control-Allow-Origin: *`), making it fully compatible with all IPTV clients and web players.
 
-#### 🔥 Динамические запросы на лету!
-Вам не нужно перезапускать сервер или менять конфиг, чтобы послушать других авторов. Наш сервер умеет генерировать плейлисты динамически через параметры запроса:
-* Плейлист любого автора: `http://localhost:3333/radio?username=ИМЯ_АВТОРА`
-* Объединение нескольких аккаунтов в один плейлист: `http://localhost:3333/radio?username=kinkypanda,another_user`
-* Кастомное зацикливание (повторить песни 10 раз): `http://localhost:3333/radio?username=kinkypanda&loop=10`
-* Управление перемешиванием (shuffle) на лету: `http://localhost:3333/radio?username=kinkypanda&shuffle=true` (или `false`)
-* С сортировкой по дате выхода: `http://localhost:3333/radio?username=kinkypanda&sort=created_at`
+#### 🔥 Dynamic Queries On-The-Fly!
+You don't need to change configs or restart the server to listen to other authors. The server supports dynamic playlist generation via query parameters:
+* Playlist of a single author: `http://localhost:3333/radio?username=USERNAME`
+* Combining multiple accounts on the fly: `http://localhost:3333/radio?username=kinkypanda,another_user`
+* Custom loop counts: `http://localhost:3333/radio?username=kinkypanda&loop=10`
+* Toggling shuffling on the fly: `http://localhost:3333/radio?username=kinkypanda&shuffle=true` (or `false`)
+* Sorting by release date: `http://localhost:3333/radio?username=kinkypanda&sort=created_at`
 
-*Все динамические запросы автоматически кэшируются в оперативной памяти на 30 минут (настраивается в `cacheTTL`), чтобы не нагружать сервера Suno.*
+*All dynamic requests are cached in memory for 30 minutes (configurable via `cacheTTL`) to prevent rate-limiting from the Suno API.*
 
 ---
 
-### Режим 2. Автономный генератор (Просто файл для хостинга)
+### Mode 2. Standalone Generator (Static M3U File)
 
-Если вы не хотите держать запущенный Node.js сервер, вы можете просто запустить скрипт-генератор, получить файл `live` и загрузить его на свой статический хостинг (например, GitHub Pages, Netlify, Vercel или обычный FTP/Apache/Nginx).
+If you don't want to keep a Node.js process running, you can run the generator standalone to write a static `radio` file, then upload it to any static file hosting (e.g., GitHub Pages, Netlify, Vercel, or traditional Nginx/Apache directory).
 
 ```bash
 npm run generate
 ```
 
-Вы также можете передать имена пользователей (через запятую), количество повторов, сортировку и перемешивание прямо из консоли:
+You can also pass arguments directly in the terminal:
 ```bash
-# Формат: node generator.js [аккаунты_через_запятую] [количество_повторов] [сортировка] [перемешивание_true_или_false]
+# Format: node generator.js [usernames_comma_separated] [loop_count] [sorting] [shuffling_true_or_false]
 node generator.js kinkypanda,another_user 10 created_at true
 ```
 
-После выполнения скрипта в корне проекта появится файл `radio` без расширения. Просто загрузите его на свой хостинг, и он будет доступен как `https://your-hosting.com/radio`.
+The generator will output a static `radio` file in the project root.
 
 ---
 
-## 🔁 Бесконечный повтор (Infinite Loop)
+## 🔁 Infinite Loop Mechanics
 
-M3U-плейлисты по своей природе являются статическими списками ссылок, поэтому бесконечное зацикливание реализуется следующими способами:
+M3U playlists are inherently static lists of links. Continuous streaming is achieved via several methods in this project:
 
-1. **Дублирование на стороне сервера (Опция `loopCount`)**:
-   В конфиге `config.js` или через параметр `?loop=X` вы можете указать, сколько раз повторить треки. Если у автора 50 песен, а вы установили `loopCount: 10`, в плейлисте будет 500 записей подряд. Этого более чем достаточно для создания эффекта бесконечного радио.
-2. **Включение повтора в плеере**:
-   Любой современный медиаплеер (VLC, IPTV плееры, OttPlayer, Kodi) имеет встроенную кнопку зацикливания («Повторять все» / «Loop All»). Это самый правильный и чистый способ зацикливания.
-3. **Совместимые мета-теги**:
-   Проект автоматически добавляет в заголовок M3U-файла совместимые теги:
+1. **Server-Side Duplication (`loopCount`)**:
+   In `config.js` or via `?loop=X` query params, you can multiply the tracks. If an author has 50 songs and `loopCount` is set to 10, the M3U will output 500 tracks sequentially, creating an immersive, long-lasting radio wave.
+2. **Player-Side Looping**:
+   Any modern IPTV client or media player (VLC, Televizo, OttPlayer, Kodi) has an option to "Repeat Playlist" or "Loop All". This is the cleanest way to loop the audio.
+3. **M3U Metadata Headers**:
+   The generator inserts player-compatible stream headers at the top of the M3U output:
    ```m3u
    #EXT-X-PLAYLIST-TYPE:EVENT
    #EXT-X-ALLOW-CACHE:YES
    ```
-   Они дают понять некоторым продвинутым плеерам, что плейлист является непрерывным событием (стримом).
+   These indicators signal to advanced players that the source should be treated as an ongoing live event.
 
 ---
 
-## 🔌 Выпуск во внешний мир через ngrok
+## 🔌 Exposing the Stream to the World (ngrok)
 
-Если вы запустили сервер локально (`npm start`) и хотите, чтобы ссылка `http://localhost:3333/radio` стала доступна вашему плееру на телевизоре, телефоне или другу в интернете:
+If you are running the server locally and want to listen to your Suno radio on a smart TV, phone, or share it with friends:
 
-1. Скачайте и установите [ngrok](https://ngrok.com/).
-2. Запустите туннелирование порта `3333`:
+1. Install [ngrok](https://ngrok.com/).
+2. Forward port `3333`:
    ```bash
    ngrok http 3333
    ```
-3. Скопируйте публичный адрес, выданный ngrok (например, `https://a1b2-34-56-78.ngrok-free.app`).
-4. Теперь ваш плейлист доступен всему миру по адресу:
+3. Copy the public address provided by ngrok (e.g., `https://a1b2-34-56-78.ngrok-free.app`).
+4. Your M3U playlist is now globally accessible at:
    `https://a1b2-34-56-78.ngrok-free.app/radio`
 
-Вы можете вставить эту ссылку в любой плеер (VLC, Televizo, OTT Navigator, Smart IPTV и др.), и ваше персональное Suno-радио заиграет!
+Load this URL in any IPTV player (Televizo, OTT Navigator, Smart IPTV, VLC) to start listening!
 
 ---
 
-## 💻 Веб-интерфейс радиостанции (Vite + React)
+## 💻 Web Station Player (Vite + React)
 
-В папке `frontend` находится простейшее, но невероятно стильное веб-приложение радиостанции, собранное на **Vite + React**. Оно выполнено в темно-фиолетовых и неоново-зеленых киберпанк тонах и имеет встроенный интерактивный аудио-плеер.
+Inside the `frontend` directory is a minimalist, cyber-punk themed single-page web player built using **Vite + React**. It parses the M3U stream and provides an interactive jukebox UI.
 
-### 🌟 Возможности веб-плеера:
-1. **Парсинг M3U на лету**: Веб-приложение загружает плейлист вашего бэкенд-сервера (через ngrok или локальный адрес), разбирает его и воспроизводит песни одну за другой.
-2. **Анимация крутящейся пластинки**: Обложка песни (`tvg-logo`) крутится при воспроизведении и останавливается на паузе.
-3. **Анимированный эквалайзер**: Полосы визуализатора динамически пульсируют во время проигрывания.
-4. **Интерактивный Jukebox (Плейлист)**: Полноценный список всех треков радиостанции с мгновенным поиском по названию, стилю или тегу, а также фильтром по топ-жанрам.
-5. **Изменение стрима прямо в UI**: Слушатель может прямо в интерфейсе указать любой другой URL M3U-потока, и плеер мгновенно перестроится.
+### 🌟 Web Player Features:
+1. **M3U Parsing on the Fly**: Fetches and parses the M3U stream from the backend server, queuing tracks for continuous gapless playback.
+2. **Rotating Vinyl Animation**: The album artwork disc (`tvg-logo`) rotates gracefully when playing and pauses smoothly when on hold.
+3. **Pulsing EQ Visualizer**: Animated soundbars bounce dynamically in sync with the audio state.
+4. **Interactive Sidebar Playlist**: A gorgeous slide-out playlist panel supporting quick searches, tab filtering, and a separate top-genres filter.
+5. **Stream Configuration**: Listeners can change the source M3U stream directly in the player's collapsible settings menu.
 
-### ⚙️ Настройка и запуск фронтенда:
+### ⚙️ Setting Up the Frontend:
 
-1. Ссылка на поток настраивается в файле `frontend/src/config.js` (по умолчанию установлена ваша ссылка: `https://test-server.ngrok.dev/radio`).
-2. Перейдите в папку фронтенда и установите зависимости:
+1. Configure the default stream URL in `frontend/src/config.js` (it points to your default stream: `https://test-server.ngrok.dev/radio`).
+2. Move into the frontend directory and install dependencies:
    ```bash
    cd frontend
    npm install
    ```
-3. Запустите веб-плеер в режиме разработки:
+3. Run the development server:
    ```bash
    npm run dev
    ```
-4. Откройте адрес `http://localhost:3000` в браузере. Вы увидите полноценное, красивое веб-радио со списком всех треков, визуализатором и виниловой пластинкой!
+4. Open `http://localhost:3000` in your web browser.
 
-### 📦 Сборка в продакшн:
-Чтобы получить статические файлы для загрузки на любой хостинг:
+### 📦 Production Build:
+Generate optimized, static assets for deployment:
 ```bash
 npm run build
 ```
-Готовая статика появится в папке `frontend/dist`. Вы можете залить её на Netlify, Vercel, GitHub Pages или любой другой хостинг!
+Upload the compiled folder `frontend/dist` to Netlify, Vercel, GitHub Pages, or any FTP server.
 
 ---
 
-## 🚀 История обновлений и Роадмап (Roadmap)
+## 🚀 Completed Improvements & Feature Roadmap
 
-### ✅ Что уже сделано (Выполненные улучшения):
+### ✅ Implemented Features (Completed):
 
-1. **Элегантное усечение текста (Truncate)**:
-   - Для имени исполнителя (`artist`) под названием трека настроено автоматическое усечение с троеточием (`text-overflow: ellipsis`) на основе inline-стилей React. Теперь длинные имена артистов не переносятся и дизайн карточки плеера всегда остается ровным и сбалансированным.
+1. **Smart Text Truncation**:
+   - Track details, artist handles, and titles automatically truncate with ellipses (`text-overflow: ellipsis`) when overflowing, keeping the card design perfectly neat.
 
-2. **Интерактивный плейлист (Drawer)**:
-   - В правом верхнем углу экрана добавлена круглая плавающая кнопка вызова плейлиста.
-   - Спроектировано стильное боковое меню справа в стиле **glassmorphism** (эффект матового стекла с размытием заднего фона).
-   - Внутри панели реализованы два таба: **All Tracks** (весь доступный эфир) и **Liked** (избранное) с независимой вертикальной прокруткой списка.
-   - Настроена полная адаптивность для смартфонов (меню плавно раскрывается на всю ширину экрана).
-   - Реализована плавная анимация выдвижения меню и полупрозрачный блюр-задник (backdrop), клик по которому мягко закрывает панель плейлиста.
+2. **Interactive Playlist Drawer (Right Sidebar)**:
+   - A float button in the top-right reveals a slide-out drawer built with a glassmorphism style.
+   - Houses two tabs—**All Tracks** and **Liked** (Favorites)—with independent scrolling lists.
+   - Includes a dark translucent backdrop overlay that closes the sidebar on click.
 
-3. **Управление воспроизведением (Repeat 1)**:
-   - В панель кнопок добавлена кнопка **Repeat 1** (Зацикливание одного трека) с неоновой фиолетовой подсветкой при активации. При её включении песня зацикливается и играет по кругу.
+3. **Playback Repeat (Repeat One)**:
+   - Added a repeat button supporting looping for a single track. It glows with a neon purple indicator when active.
 
-4. **Система Избранного (Like)**:
-   - Добавлена кнопка **Like** в виде сердечка с мягким красным неоновым свечением при лайке.
-   - Список лайкнутых песен автоматически сохраняется в `localStorage` и не пропадает после перезагрузки страницы или плеера.
-   - Реализована дедупликация треков во вкладке **Liked**: поскольку плейлист на сервере может быть зациклен для непрерывного эфира, в списке любимых песен они отображаются ровно в единственном экземпляре.
-   - В обоих списках (All Tracks и Liked) рядом с названиями лайкнутых треков отображается маркер `❤️` для удобства.
-   - Клик по песне в списке Liked находит её первый оригинальный индекс в главной очереди и плавно запускает воспроизведение, сохраняя дальнейшую очередь.
+4. **Favorites System (Like/Unlike)**:
+   - A heart-shaped like button with a red neon glow saves user selections in `localStorage`.
+   - The favorites list persists across tab refreshes and features track deduplication.
+   - Clicking on any liked song launches playback of its first queue reference seamlessly.
 
-5. **Выдвижная панель слов песен (Left Lyrics Drawer)**:
-   - Разработана широкая выдвижная панель слева (`500px`), плавно выезжающая при нажатии на кнопку **Lyrics** (по аналогии с панелью плейлиста справа).
-   - Встроен красивый полупрозрачный блюр-задник (backdrop overlay) и заголовок с названием песни и исполнителем.
+5. **Slide-Out Lyrics Sidebar (Left Drawer)**:
+   - Replaced centered modals with a sleek left-side drawer panel with a wide `500px` layout (about 30% wider) matching the Right Sidebar's transitions and glassmorphism styling.
+   - Displays parsed headers (e.g. `[Verse]`, `[Chorus]`) and body lyrics cleanly.
 
-6. **Мгновенный онлайн-перевод песен на лету (Real-time Lyrics Translation)**:
-   - Реализована система перевода оригинальных слов песни на другие языки в реальном времени.
-   - Внедрена связка: Express-сервер на бэкенде использует пакет `translatte` и отдает результат по роуту POST `/translate`, а фронтенд отправляет асинхронные fetch-запросы на перевод, автоматически подстраиваясь под ngrok или локальный сервер.
-   - Интегрирован тулбар перевода: селектор выбора языка (en/ru), кнопка **Translate** (с анимацией загрузки и активным неоновым состоянием) и кнопка **Original** (для мгновенного возврата оригинального текста песни из плейлиста).
-   - Текст плавно перерисовывается с использованием красивой CSS-анимации проявления (`.animate-fade-in`) благодаря механизму реактивного remount-ключа в React.
-   - При смене песни в плеере перевод автоматически сбрасывается к оригиналу.
+6. **Real-Time Lyrics Translation Subsystem**:
+   - Fully operational translations to English and Russian.
+   - Built a POST `/translate` endpoint on the Express backend (`server.js`) utilizing the Node `translatte` library (solving browser sandboxing/CORS issues).
+   - The React frontend dynamically queries this route (extracting server details directly from `streamUrl`).
+   - Integrated a translation toolbar at the top of the lyrics drawer featuring:
+     - Target language dropdown menu (`en` and `ru`).
+     - **Translate** action button showing an active loading state (`Translating...`) during the API request.
+     - **Original** button to clear the translated cache.
+     - Active glowing highlight colors on the buttons representing which state is currently active.
+     - Instant CSS fade-in remount animation (`.animate-fade-in`) whenever lyrics toggle.
+     - Auto-wipes translated cache on track changes to reset to original lyrics.
 
-### 🔮 Что планируется сделать (Наши цели):
+### 🔮 Future Roadmap:
 
-*(Все запланированные фичи — извлечение текстов песен из Suno, их отображение в реальном времени и синхронный онлайн-перевод — были успешно и досрочно реализованы в полном объеме!)*
+*(All core targets, including lyrics metadata scraping, left-sliding sidebars, and automatic on-the-fly translations, have been fully and successfully implemented!)*
