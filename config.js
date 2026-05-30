@@ -1,6 +1,6 @@
 export const config = {
   // Список имен пользователей Suno по умолчанию (поддерживается массив аккаунтов)
-  defaultUsernames: ['ttt13666'],
+  defaultUsernames: ['kinkypanda', 'ttt13666'],
   
   // Перемешивать ли треки случайным образом для разнообразия эфира (true/false)
   shuffle: true,

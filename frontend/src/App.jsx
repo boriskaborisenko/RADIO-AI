@@ -96,6 +96,9 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('all');
   const [isRepeatOne, setIsRepeatOne] = useState(false);
   const [isLyricsOpen, setIsLyricsOpen] = useState(false);
+  const [selectedLanguage, setSelectedLanguage] = useState('ru');
+  const [translatedWords, setTranslatedWords] = useState(null);
+  const [isTranslating, setIsTranslating] = useState(false);
   const [likedTrackUrls, setLikedTrackUrls] = useState(() => {
     try {
       const saved = localStorage.getItem('radio-liked-tracks');
@@ -170,6 +173,43 @@ export default function App() {
     }
     localStorage.setItem('radio-volume', volume);
   }, [volume]);
+
+  // Reset translation when track changes
+  useEffect(() => {
+    setTranslatedWords(null);
+  }, [currentTrackIndex]);
+
+  const handleTranslate = async () => {
+    if (!currentTrack || !currentTrack.words) return;
+    
+    setIsTranslating(true);
+    
+    try {
+      const baseUrl = streamUrl.replace(/\/radio$/, '');
+      const response = await fetch(`${baseUrl}/translate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          text: currentTrack.words,
+          to: selectedLanguage
+        })
+      });
+      
+      const data = await response.json();
+      if (response.ok && data.text) {
+        setTranslatedWords(data.text);
+      } else {
+        alert(data.error || 'Translation failed.');
+      }
+    } catch (err) {
+      console.error('[Translation Error]', err);
+      alert('Translation failed: ' + err.message);
+    } finally {
+      setIsTranslating(false);
+    }
+  };
 
   const currentTrack = playlist[currentTrackIndex];
   const likedTracks = playlist.filter(track => likedTrackUrls.includes(track.url));
@@ -994,7 +1034,7 @@ export default function App() {
           top: 0,
           left: 0,
           height: '100vh',
-          width: '380px',
+          width: '500px',
           maxWidth: '100vw',
           zIndex: 1100,
           display: 'flex',
@@ -1027,14 +1067,96 @@ export default function App() {
           </button>
         </div>
 
+        {/* Translation Toolbar */}
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'space-between',
+          gap: '12px',
+          marginBottom: '20px',
+          background: 'rgba(255, 255, 255, 0.03)',
+          border: '1px solid rgba(255, 255, 255, 0.05)',
+          borderRadius: '12px',
+          padding: '10px 14px'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#a1a1aa' }}>
+            <span>Translate to:</span>
+            <select 
+              value={selectedLanguage}
+              onChange={(e) => setSelectedLanguage(e.target.value)}
+              style={{
+                background: '#18181b',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                borderRadius: '6px',
+                color: '#fff',
+                padding: '4px 8px',
+                fontSize: '12px',
+                outline: 'none',
+                cursor: 'pointer'
+              }}
+            >
+              <option value="en">en</option>
+              <option value="ru">ru</option>
+            </select>
+          </div>
+          
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              className="btn-control"
+              onClick={handleTranslate}
+              disabled={isTranslating || !currentTrack?.words}
+              style={{
+                background: translatedWords ? 'rgba(4, 211, 97, 0.2)' : 'var(--color-primary)',
+                border: translatedWords ? '1px solid var(--color-secondary)' : 'none',
+                borderRadius: '6px',
+                padding: '6px 12px',
+                color: translatedWords ? 'var(--color-secondary)' : '#fff',
+                boxShadow: translatedWords ? '0 0 10px var(--color-secondary-glow)' : 'none',
+                fontSize: '12px',
+                fontWeight: 'bold',
+                cursor: (!currentTrack?.words) ? 'not-allowed' : 'pointer',
+                opacity: (!currentTrack?.words) ? 0.5 : 1,
+                width: 'auto',
+                height: 'auto'
+              }}
+            >
+              {isTranslating ? 'Translating...' : 'Translate'}
+            </button>
+            <button
+              className="btn-control"
+              onClick={() => setTranslatedWords(null)}
+              disabled={isTranslating}
+              style={{
+                background: !translatedWords ? 'rgba(139, 92, 246, 0.2)' : 'rgba(255, 255, 255, 0.08)',
+                border: !translatedWords ? '1px solid var(--color-primary)' : '1px solid rgba(255, 255, 255, 0.1)',
+                borderRadius: '6px',
+                padding: '6px 12px',
+                color: !translatedWords ? '#fff' : '#e1e1e6',
+                boxShadow: !translatedWords ? '0 0 10px var(--color-primary-glow)' : 'none',
+                fontSize: '12px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                width: 'auto',
+                height: 'auto'
+              }}
+            >
+              Original
+            </button>
+          </div>
+        </div>
+
         {/* Scrollable Content */}
         <div style={{ flex: 1, overflowY: 'auto', paddingRight: '8px', marginBottom: '8px' }}>
-          <div style={{ 
-            textAlign: 'left',
-            fontFamily: "'Plus Jakarta Sans', sans-serif",
-            padding: '0 16px'
-          }}>
-            {currentTrack?.words ? currentTrack.words.replace(/\\n/g, '\n').split('\n').map((line, idx) => {
+          <div 
+            key={translatedWords ? 'translated' : 'original'}
+            className="animate-fade-in"
+            style={{ 
+              textAlign: 'left',
+              fontFamily: "'Plus Jakarta Sans', sans-serif",
+              padding: '0 16px'
+            }}
+          >
+            {(translatedWords || currentTrack?.words) ? (translatedWords || currentTrack.words).replace(/\\n/g, '\n').split('\n').map((line, idx) => {
               const trimmedLine = line.trim();
               if (!trimmedLine) {
                 return <div key={idx} style={{ height: '8px' }} />;

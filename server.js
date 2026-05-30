@@ -2,11 +2,15 @@ import express from 'express';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import translatte from 'translatte';
 import { config } from './config.js';
 import { buildPlaylist, getUserId, fetchSongs, generateM3U } from './generator.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
+
+// Middleware для парсинга JSON-запросов
+app.use(express.json());
 
 // Простой кэш в оперативной памяти для динамических запросов
 // Формат: key -> { content: string, expiresAt: number }
@@ -27,9 +31,27 @@ setInterval(() => {
 // Настройка CORS заголовков, чтобы веб-плееры могли читать плейлист напрямую из браузера
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   next();
+});
+
+// Маршрут для перевода текста песни
+app.post('/translate', async (req, res) => {
+  const { text, to } = req.body;
+  
+  if (!text) {
+    return res.status(400).json({ error: 'Text is required for translation.' });
+  }
+
+  try {
+    console.log(`[Server] Translating text to: ${to || 'ru'}`);
+    const result = await translatte(text, { to: to || 'ru' });
+    return res.json({ text: result.text });
+  } catch (err) {
+    console.error('[Server] Translation error:', err.message || err);
+    return res.status(500).json({ error: err.message || 'Translation failed.' });
+  }
 });
 
 // Маршрут для отдачи плейлиста

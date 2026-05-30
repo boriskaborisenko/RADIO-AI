@@ -18,6 +18,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "express": "^4.19.2"
+    "express": "^4.19.2",
+    "translatte": "^3.0.1"
   }
 }
