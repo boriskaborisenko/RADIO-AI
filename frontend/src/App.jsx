@@ -24,6 +24,14 @@ const parseM3U = (text) => {
       const groupTitleMatch = line.match(/group-title="([^"]+)"/);
       const genre = groupTitleMatch ? groupTitleMatch[1] : 'AI';
 
+      // Parse track ID (suno-id)
+      const sunoIdMatch = line.match(/suno-id="([^"]+)"/);
+      const id = sunoIdMatch ? sunoIdMatch[1] : '';
+
+      // Parse track lyrics (words)
+      const wordsMatch = line.match(/words="([^"]*)"/);
+      const words = wordsMatch ? wordsMatch[1] : '';
+
       // Parse artist and song title from the rest of the line (after the comma)
       const commaIndex = line.indexOf(',');
       let artist = 'AI Artist';
@@ -40,7 +48,7 @@ const parseM3U = (text) => {
         }
       }
 
-      currentTrack = { duration, logo, genre, artist, title };
+      currentTrack = { duration, logo, genre, artist, title, id, words };
     } else if (line.startsWith('http://') || line.startsWith('https://')) {
       if (currentTrack) {
         currentTrack.url = line;
@@ -50,7 +58,17 @@ const parseM3U = (text) => {
     }
   }
 
-  return tracks;
+  // Deduplicate tracks by unique URL to prevent layout clutter in the UI
+  const uniqueTracks = [];
+  const seenUrls = new Set();
+  for (const track of tracks) {
+    if (!seenUrls.has(track.url)) {
+      uniqueTracks.push(track);
+      seenUrls.add(track.url);
+    }
+  }
+
+  return uniqueTracks;
 };
 
 export default function App() {
@@ -77,6 +95,7 @@ export default function App() {
   const [isPlaylistOpen, setIsPlaylistOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('all');
   const [isRepeatOne, setIsRepeatOne] = useState(false);
+  const [isLyricsOpen, setIsLyricsOpen] = useState(false);
   const [likedTrackUrls, setLikedTrackUrls] = useState(() => {
     try {
       const saved = localStorage.getItem('radio-liked-tracks');
@@ -153,9 +172,7 @@ export default function App() {
   }, [volume]);
 
   const currentTrack = playlist[currentTrackIndex];
-  const uniqueLikedTracks = playlist.filter((track, index, self) => 
-    likedTrackUrls.includes(track.url) && self.findIndex(t => t.url === track.url) === index
-  );
+  const likedTracks = playlist.filter(track => likedTrackUrls.includes(track.url));
 
   // Player action handlers
   const handlePlayPause = () => {
@@ -583,6 +600,41 @@ export default function App() {
           )}
         </div>
 
+        {/* LYRICS BUTTON */}
+        <button
+          disabled={!currentTrack?.words}
+          onClick={() => setIsLyricsOpen(true)}
+          style={{
+            background: currentTrack?.words ? 'rgba(139, 92, 246, 0.15)' : 'rgba(255, 255, 255, 0.02)',
+            border: '1px solid ' + (currentTrack?.words ? 'var(--color-primary)' : 'rgba(255, 255, 255, 0.05)'),
+            borderRadius: '20px',
+            padding: '8px 24px',
+            color: currentTrack?.words ? '#fff' : '#4b5563',
+            fontSize: '13px',
+            fontWeight: 'bold',
+            cursor: currentTrack?.words ? 'pointer' : 'not-allowed',
+            transition: 'all 0.2s',
+            boxShadow: currentTrack?.words ? '0 0 12px rgba(139, 92, 246, 0.2)' : 'none',
+            letterSpacing: '1.5px',
+            marginTop: '4px',
+            outline: 'none'
+          }}
+          onMouseOver={(e) => {
+            if (currentTrack?.words) {
+              e.currentTarget.style.background = 'var(--color-primary)';
+              e.currentTarget.style.boxShadow = '0 0 20px var(--color-primary-glow)';
+            }
+          }}
+          onMouseOut={(e) => {
+            if (currentTrack?.words) {
+              e.currentTarget.style.background = 'rgba(139, 92, 246, 0.15)';
+              e.currentTarget.style.boxShadow = '0 0 12px rgba(139, 92, 246, 0.2)';
+            }
+          }}
+        >
+          🎤 LYRICS
+        </button>
+
         {/* VOLUME CONTROL BAR */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '80%', marginTop: '6px' }}>
           <span style={{ fontSize: '15px', color: '#71717a' }}>
@@ -840,8 +892,8 @@ export default function App() {
                 </div>
               );
             })
-          ) : uniqueLikedTracks.length > 0 ? (
-            uniqueLikedTracks.map((track) => {
+          ) : likedTracks.length > 0 ? (
+            likedTracks.map((track) => {
               const mainIndex = playlist.findIndex(t => t.url === track.url);
               const isCurrent = mainIndex === currentTrackIndex;
               return (
@@ -912,6 +964,121 @@ export default function App() {
               <span style={{ fontSize: '12px', textAlign: 'center', opacity: 0.8 }}>Tracks you liked will appear here.</span>
             </div>
           )}
+        </div>
+      </div>
+
+      {/* LYRICS SIDEBAR DRAWER */}
+      {isLyricsOpen && (
+        <div 
+          onClick={() => setIsLyricsOpen(false)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            background: 'rgba(0, 0, 0, 0.4)',
+            backdropFilter: 'blur(4px)',
+            WebkitBackdropFilter: 'blur(4px)',
+            zIndex: 1050,
+            cursor: 'pointer',
+            transition: 'opacity 0.3s ease-in-out'
+          }}
+        />
+      )}
+
+      <div 
+        className="glass-panel"
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          height: '100vh',
+          width: '380px',
+          maxWidth: '100vw',
+          zIndex: 1100,
+          display: 'flex',
+          flexDirection: 'column',
+          padding: '24px',
+          boxShadow: '10px 0 30px rgba(0, 0, 0, 0.5)',
+          transition: 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+          transform: isLyricsOpen ? 'translateX(0)' : 'translateX(-100%)'
+        }}
+      >
+        {/* Drawer Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '16px' }}>
+          <div style={{ textAlign: 'left', flex: 1, marginRight: '16px', minWidth: 0 }}>
+            <h3 style={{ fontSize: '18px', fontWeight: 'bold', color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {currentTrack?.title || 'No track selected'}
+            </h3>
+            <p style={{ fontSize: '14px', color: '#a78bfa', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {currentTrack?.artist || ''}
+            </p>
+          </div>
+          <button 
+            className="btn-control" 
+            onClick={() => setIsLyricsOpen(false)}
+            style={{ width: '36px', height: '36px', flexShrink: 0 }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+
+        {/* Scrollable Content */}
+        <div style={{ flex: 1, overflowY: 'auto', paddingRight: '8px', marginBottom: '8px' }}>
+          <div style={{ 
+            textAlign: 'left',
+            fontFamily: "'Plus Jakarta Sans', sans-serif",
+            padding: '0 16px'
+          }}>
+            {currentTrack?.words ? currentTrack.words.replace(/\\n/g, '\n').split('\n').map((line, idx) => {
+              const trimmedLine = line.trim();
+              if (!trimmedLine) {
+                return <div key={idx} style={{ height: '8px' }} />;
+              }
+
+              const isHeader = trimmedLine.startsWith('[') && trimmedLine.endsWith(']');
+              
+              if (isHeader) {
+                return (
+                  <div 
+                    key={idx} 
+                    style={{ 
+                      marginTop: idx === 0 ? '4px' : '22px', 
+                      marginBottom: '6px',
+                      opacity: 0.45, 
+                      fontSize: '12px', 
+                      fontWeight: '800', 
+                      color: '#c084fc', 
+                      letterSpacing: '1.5px',
+                      textTransform: 'uppercase'
+                    }}
+                  >
+                    {trimmedLine}
+                  </div>
+                );
+              }
+
+              return (
+                <div 
+                  key={idx} 
+                  style={{ 
+                    lineHeight: '1.8', 
+                    fontSize: '15px', 
+                    color: '#e1e1e6', 
+                    opacity: 0.9 
+                  }}
+                >
+                  {trimmedLine}
+                </div>
+              );
+            }) : (
+              <p style={{ color: '#71717a', textAlign: 'center' }}>No lyrics available</p>
+            )}
+          </div>
         </div>
       </div>
 

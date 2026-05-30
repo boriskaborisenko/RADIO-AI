@@ -153,6 +153,15 @@ export function generateM3U(songs, loopCount = config.loopCount, usernames = con
       .trim();
   };
 
+  // Хелпер для очистки текста песен с сохранением переносов строк (экранирование \n)
+  const cleanLyrics = (val) => {
+    if (!val) return '';
+    return String(val)
+      .replace(/[\r\n]+/g, '\\n')
+      .replace(/"/g, "'")
+      .trim();
+  };
+
   // Алгоритм Фишера-Йетса для случайного перемешивания массива
   const shuffleArray = (array) => {
     for (let i = array.length - 1; i > 0; i--) {
@@ -191,7 +200,12 @@ export function generateM3U(songs, loopCount = config.loopCount, usernames = con
       // Название песни
       const title = clean(song.title || 'Untitled Song');
 
-      m3u += `#EXTINF:${duration} tvg-logo="${tvgLogo}" group-title="${groupTitle}",${artist} - ${title}\n`;
+      // Слова/Текст песни
+      const prompt = song.metadata?.prompt || '';
+      const hasVerse = prompt.toLowerCase().includes('[verse');
+      const wordsAttr = hasVerse ? `words="${cleanLyrics(prompt)}"` : 'words=""';
+
+      m3u += `#EXTINF:${duration} tvg-logo="${tvgLogo}" group-title="${groupTitle}" suno-id="${song.id || ''}" ${wordsAttr},${artist} - ${title}\n`;
       m3u += `${audioUrl}\n\n`;
       totalAddedCount++;
     }
