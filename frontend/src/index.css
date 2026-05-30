@@ -264,3 +264,49 @@ body {
 .btn-tune-in:active {
   transform: scale(0.98);
 }
+
+/* Красное неоновое свечение для лайкнутого сердечка */
+.neon-glow-red {
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.4);
+}
+
+.neon-text-red {
+  color: #f87171;
+  text-shadow: 0 0 10px rgba(239, 68, 68, 0.6);
+}
+
+/* Стили кнопок-переключателей режимов воспроизведения */
+.btn-mode-toggle {
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: #71717a;
+  cursor: pointer;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease-in-out;
+}
+
+.btn-mode-toggle:hover {
+  color: #e1e1e6;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.btn-mode-toggle-active-purple {
+  color: #c084fc !important;
+  border-color: rgba(167, 139, 250, 0.4) !important;
+  box-shadow: 0 0 15px rgba(167, 139, 250, 0.3);
+}
+
+.btn-mode-toggle-active-green {
+  color: var(--color-secondary) !important;
+  border-color: rgba(4, 211, 97, 0.4) !important;
+  box-shadow: 0 0 15px rgba(4, 211, 97, 0.3);
+}
+
+.btn-mode-toggle-active-red {
+  color: #f87171 !important;
+  border-color: rgba(239, 68, 68, 0.4) !important;
+  box-shadow: 0 0 15px rgba(239, 68, 68, 0.3);
+}

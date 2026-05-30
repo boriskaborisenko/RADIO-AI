@@ -74,6 +74,18 @@ export default function App() {
   const [currentTime, setCurrentTime] = useState(0);
   const [trackDuration, setTrackDuration] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
+  const [isPlaylistOpen, setIsPlaylistOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('all');
+  const [isRepeatOne, setIsRepeatOne] = useState(false);
+  const [likedTrackUrls, setLikedTrackUrls] = useState(() => {
+    try {
+      const saved = localStorage.getItem('radio-liked-tracks');
+      return saved ? JSON.parse(saved) : [];
+    } catch (err) {
+      console.error('[App] Failed to load liked tracks:', err);
+      return [];
+    }
+  });
 
   const audioRef = useRef(null);
 
@@ -141,6 +153,9 @@ export default function App() {
   }, [volume]);
 
   const currentTrack = playlist[currentTrackIndex];
+  const uniqueLikedTracks = playlist.filter((track, index, self) => 
+    likedTrackUrls.includes(track.url) && self.findIndex(t => t.url === track.url) === index
+  );
 
   // Player action handlers
   const handlePlayPause = () => {
@@ -169,8 +184,26 @@ export default function App() {
     }
   };
 
+  const toggleLike = (trackUrl) => {
+    setLikedTrackUrls(prev => {
+      const isLiked = prev.includes(trackUrl);
+      const updated = isLiked 
+        ? prev.filter(url => url !== trackUrl)
+        : [...prev, trackUrl];
+      localStorage.setItem('radio-liked-tracks', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
   const handleAudioEnded = () => {
-    handleNext();
+    if (isRepeatOne) {
+      if (audioRef.current) {
+        audioRef.current.currentTime = 0;
+        audioRef.current.play().catch(err => console.error('[Player] Loop replay error:', err));
+      }
+    } else {
+      handleNext();
+    }
   };
 
   const handleProgressChange = (e) => {
@@ -407,7 +440,7 @@ export default function App() {
               <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', padding: '0 5px' }}>
                 {currentTrack.title}
               </h2>
-              <p className="neon-text-purple" style={{ fontSize: '17px', fontWeight: '500' }}>
+              <p className="neon-text-purple" style={{ fontSize: '17px', fontWeight: '500', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', padding: '0 5px', width: '100%' }}>
                 {currentTrack.artist}
               </p>
               <div style={{ display: 'flex', justifyContent: 'center', marginTop: '4px' }}>
@@ -455,7 +488,29 @@ export default function App() {
         </div>
 
         {/* MEDIA PLAYER CONTROLS (Enlarged size: Next/Prev 50px, Play 72px) */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '22px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          {/* Repeat One Button */}
+          <button
+            className={`btn-control ${isRepeatOne ? 'btn-control-active' : ''}`}
+            onClick={() => setIsRepeatOne(!isRepeatOne)}
+            disabled={playlist.length === 0}
+            style={{ 
+              width: '44px', 
+              height: '44px', 
+              cursor: playlist.length === 0 ? 'not-allowed' : 'pointer',
+              color: isRepeatOne ? '#fff' : '#71717a'
+            }}
+            title="Repeat One"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ position: 'relative' }}>
+              <polyline points="17 1 21 5 17 9"></polyline>
+              <path d="M3 11V9a4 4 0 0 1 4-4h14"></path>
+              <polyline points="7 23 3 19 7 15"></polyline>
+              <path d="M21 13v2a4 4 0 0 1-4 4H3"></path>
+              <text x="12" y="14" fontSize="8" fontWeight="bold" fill="currentColor" textAnchor="middle" style={{ fontStyle: 'normal' }}>1</text>
+            </svg>
+          </button>
+
           <button 
             className="btn-control" 
             onClick={handlePrev} 
@@ -486,6 +541,46 @@ export default function App() {
           >
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 4 15 12 5 20 5 4"></polygon><line x1="19" y1="5" x2="19" y2="19"></line></svg>
           </button>
+
+          {/* Like Button */}
+          {currentTrack ? (
+            <button
+              className={`btn-control ${likedTrackUrls.includes(currentTrack.url) ? 'neon-text-red' : ''}`}
+              onClick={() => toggleLike(currentTrack.url)}
+              style={{ 
+                width: '44px', 
+                height: '44px', 
+                cursor: 'pointer',
+                color: likedTrackUrls.includes(currentTrack.url) ? '#ef4444' : '#71717a',
+                borderColor: likedTrackUrls.includes(currentTrack.url) ? 'rgba(239, 68, 68, 0.3)' : 'var(--color-border)',
+                boxShadow: likedTrackUrls.includes(currentTrack.url) ? '0 0 10px rgba(239, 68, 68, 0.3)' : 'none'
+              }}
+              title={likedTrackUrls.includes(currentTrack.url) ? "Unlike" : "Like"}
+            >
+              <svg 
+                width="18" 
+                height="18" 
+                viewBox="0 0 24 24" 
+                fill={likedTrackUrls.includes(currentTrack.url) ? "currentColor" : "none"} 
+                stroke="currentColor" 
+                strokeWidth="2.5" 
+                strokeLinecap="round" 
+                strokeLinejoin="round"
+              >
+                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+              </svg>
+            </button>
+          ) : (
+            <button
+              className="btn-control"
+              disabled
+              style={{ width: '44px', height: '44px', cursor: 'not-allowed', color: '#3f3f46' }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+              </svg>
+            </button>
+          )}
         </div>
 
         {/* VOLUME CONTROL BAR */}
@@ -555,6 +650,269 @@ export default function App() {
           ⚙️
         </button>
 
+      </div>
+
+      {/* Playlist Toggle Button */}
+      {hasTunedIn && (
+        <button 
+          className="btn-control" 
+          onClick={() => setIsPlaylistOpen(true)}
+          style={{ 
+            position: 'fixed', 
+            top: '24px', 
+            right: '24px', 
+            width: '48px', 
+            height: '48px',
+            zIndex: 100
+          }}
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="8" y1="6" x2="21" y2="6"></line>
+            <line x1="8" y1="12" x2="21" y2="12"></line>
+            <line x1="8" y1="18" x2="21" y2="18"></line>
+            <line x1="3" y1="6" x2="3.01" y2="6"></line>
+            <line x1="3" y1="12" x2="3.01" y2="12"></line>
+            <line x1="3" y1="18" x2="3.01" y2="18"></line>
+          </svg>
+        </button>
+      )}
+
+      {/* Backdrop overlay */}
+      {isPlaylistOpen && (
+        <div 
+          onClick={() => setIsPlaylistOpen(false)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            background: 'rgba(0, 0, 0, 0.4)',
+            backdropFilter: 'blur(4px)',
+            WebkitBackdropFilter: 'blur(4px)',
+            zIndex: 1050,
+            cursor: 'pointer',
+            transition: 'opacity 0.3s ease-in-out'
+          }}
+        />
+      )}
+
+      {/* Slide-out Sidebar Drawer */}
+      <div 
+        className="glass-panel"
+        style={{
+          position: 'fixed',
+          top: 0,
+          right: 0,
+          height: '100vh',
+          width: '380px',
+          maxWidth: '100vw',
+          zIndex: 1100,
+          display: 'flex',
+          flexDirection: 'column',
+          padding: '24px',
+          boxShadow: '-10px 0 30px rgba(0, 0, 0, 0.5)',
+          transition: 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+          transform: isPlaylistOpen ? 'translateX(0)' : 'translateX(100%)'
+        }}
+      >
+        {/* Drawer Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <h3 style={{ fontSize: '20px', fontWeight: 'bold', color: '#fff', letterSpacing: '1px' }}>Playlist</h3>
+          <button 
+            className="btn-control" 
+            onClick={() => setIsPlaylistOpen(false)}
+            style={{ width: '36px', height: '36px' }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+
+        {/* Tabs */}
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+          <button 
+            onClick={() => setActiveTab('all')}
+            style={{
+              flex: 1,
+              padding: '8px 12px',
+              borderRadius: '20px',
+              background: activeTab === 'all' ? 'var(--color-primary)' : 'rgba(255, 255, 255, 0.05)',
+              color: activeTab === 'all' ? '#fff' : '#a1a1aa',
+              border: '1px solid ' + (activeTab === 'all' ? 'var(--color-primary)' : 'var(--color-border)'),
+              fontSize: '13px',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              boxShadow: activeTab === 'all' ? '0 0 10px var(--color-primary-glow)' : 'none'
+            }}
+          >
+            All Tracks
+          </button>
+          <button 
+            onClick={() => setActiveTab('liked')}
+            style={{
+              flex: 1,
+              padding: '8px 12px',
+              borderRadius: '20px',
+              background: activeTab === 'liked' ? 'var(--color-primary)' : 'rgba(255, 255, 255, 0.05)',
+              color: activeTab === 'liked' ? '#fff' : '#a1a1aa',
+              border: '1px solid ' + (activeTab === 'liked' ? 'var(--color-primary)' : 'var(--color-border)'),
+              fontSize: '13px',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              boxShadow: activeTab === 'liked' ? '0 0 10px var(--color-primary-glow)' : 'none'
+            }}
+          >
+            Liked
+          </button>
+        </div>
+
+        {/* Scrollable Container */}
+        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', paddingRight: '4px' }}>
+          {activeTab === 'all' ? (
+            playlist.map((track, index) => {
+              const isCurrent = index === currentTrackIndex;
+              const isLiked = likedTrackUrls.includes(track.url);
+              return (
+                <div
+                  key={index}
+                  onClick={() => {
+                    setCurrentTrackIndex(index);
+                    setIsPlaying(true);
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    padding: '8px 12px',
+                    borderRadius: '10px',
+                    background: isCurrent ? 'rgba(4, 211, 97, 0.1)' : 'rgba(255, 255, 255, 0.02)',
+                    border: '1px solid ' + (isCurrent ? 'rgba(4, 211, 97, 0.3)' : 'transparent'),
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    textAlign: 'left'
+                  }}
+                  onMouseOver={(e) => {
+                    if (!isCurrent) {
+                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)';
+                    }
+                  }}
+                  onMouseOut={(e) => {
+                    if (!isCurrent) {
+                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.02)';
+                    }
+                  }}
+                >
+                  {/* Thumbnail */}
+                  <div style={{ width: '40px', height: '40px', borderRadius: '6px', overflow: 'hidden', background: '#18181b', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    {track.logo ? (
+                      <img src={track.logo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <span style={{ fontSize: '18px' }}>🎵</span>
+                    )}
+                  </div>
+                  {/* Info */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ fontSize: '14px', fontWeight: 'bold', color: isCurrent ? 'var(--color-secondary)' : '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>
+                        {track.title}
+                      </span>
+                      {isLiked && (
+                        <span style={{ color: '#ef4444', fontSize: '11px', flexShrink: 0 }} title="Liked">❤️</span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#a1a1aa', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {track.artist}
+                    </div>
+                  </div>
+                  {/* Status/Duration */}
+                  {isCurrent && isPlaying ? (
+                    <span style={{ color: 'var(--color-secondary)', fontSize: '14px' }}>🔊</span>
+                  ) : (
+                    <span style={{ fontSize: '11px', color: '#71717a' }}>
+                      {formatTime(track.duration)}
+                    </span>
+                  )}
+                </div>
+              );
+            })
+          ) : uniqueLikedTracks.length > 0 ? (
+            uniqueLikedTracks.map((track) => {
+              const mainIndex = playlist.findIndex(t => t.url === track.url);
+              const isCurrent = mainIndex === currentTrackIndex;
+              return (
+                <div
+                  key={track.url}
+                  onClick={() => {
+                    setCurrentTrackIndex(mainIndex);
+                    setIsPlaying(true);
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    padding: '8px 12px',
+                    borderRadius: '10px',
+                    background: isCurrent ? 'rgba(4, 211, 97, 0.1)' : 'rgba(255, 255, 255, 0.02)',
+                    border: '1px solid ' + (isCurrent ? 'rgba(4, 211, 97, 0.3)' : 'transparent'),
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    textAlign: 'left'
+                  }}
+                  onMouseOver={(e) => {
+                    if (!isCurrent) {
+                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)';
+                    }
+                  }}
+                  onMouseOut={(e) => {
+                    if (!isCurrent) {
+                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.02)';
+                    }
+                  }}
+                >
+                  {/* Thumbnail */}
+                  <div style={{ width: '40px', height: '40px', borderRadius: '6px', overflow: 'hidden', background: '#18181b', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    {track.logo ? (
+                      <img src={track.logo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <span style={{ fontSize: '18px' }}>🎵</span>
+                    )}
+                  </div>
+                  {/* Info */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ fontSize: '14px', fontWeight: 'bold', color: isCurrent ? 'var(--color-secondary)' : '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>
+                        {track.title}
+                      </span>
+                      <span style={{ color: '#ef4444', fontSize: '11px', flexShrink: 0 }}>❤️</span>
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#a1a1aa', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {track.artist}
+                    </div>
+                  </div>
+                  {/* Status/Duration */}
+                  {isCurrent && isPlaying ? (
+                    <span style={{ color: 'var(--color-secondary)', fontSize: '14px' }}>🔊</span>
+                  ) : (
+                    <span style={{ fontSize: '11px', color: '#71717a' }}>
+                      {formatTime(track.duration)}
+                    </span>
+                  )}
+                </div>
+              );
+            })
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '12px', color: '#71717a', padding: '40px 0' }}>
+              <span style={{ fontSize: '32px' }}>❤️</span>
+              <span style={{ fontSize: '14px', fontWeight: 'bold' }}>Liked list is empty</span>
+              <span style={{ fontSize: '12px', textAlign: 'center', opacity: 0.8 }}>Tracks you liked will appear here.</span>
+            </div>
+          )}
+        </div>
       </div>
 
     </div>
