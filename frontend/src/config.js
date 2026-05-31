@@ -1,6 +1,6 @@
 export const config = {
   // Ссылка на стрим плейлиста по умолчанию (указана пользователем)
-  streamUrl: 'https://test-server.ngrok.dev/radio',
+  streamUrl: ' https://test-server.ngrok.dev/radio',
   
   // Название радиостанции
   stationName: 'AI Radio',

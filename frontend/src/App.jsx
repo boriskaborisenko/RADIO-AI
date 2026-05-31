@@ -94,6 +94,7 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [isPlaylistOpen, setIsPlaylistOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
   const [isRepeatOne, setIsRepeatOne] = useState(false);
   const [isLyricsOpen, setIsLyricsOpen] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState('ru');
@@ -214,6 +215,32 @@ export default function App() {
   const currentTrack = playlist[currentTrackIndex];
   const likedTracks = playlist.filter(track => likedTrackUrls.includes(track.url));
 
+  // Filter playlist based on search query
+  const filteredPlaylist = playlist
+    .map((track, index) => ({ ...track, originalIndex: index }))
+    .filter(track => {
+      if (!searchQuery) return true;
+      const query = searchQuery.toLowerCase();
+      return (
+        track.title.toLowerCase().includes(query) ||
+        track.artist.toLowerCase().includes(query)
+      );
+    });
+
+  const filteredLikedTracks = likedTracks
+    .map(track => {
+      const originalIndex = playlist.findIndex(t => t.url === track.url);
+      return { ...track, originalIndex };
+    })
+    .filter(track => {
+      if (!searchQuery) return true;
+      const query = searchQuery.toLowerCase();
+      return (
+        track.title.toLowerCase().includes(query) ||
+        track.artist.toLowerCase().includes(query)
+      );
+    });
+
   // Player action handlers
   const handlePlayPause = () => {
     setIsPlaying(!isPlaying);
@@ -329,7 +356,7 @@ export default function App() {
                 boxShadow: '0 0 35px rgba(139, 92, 246, 0.4)'
               }}
             >
-              <span style={{ fontSize: '36px' }}>📻</span>
+              <span className="material-symbols-outlined" style={{ fontSize: '42px', color: '#a78bfa' }}>radio</span>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', textAlign: 'center' }}>
@@ -359,8 +386,9 @@ export default function App() {
             <button
               onClick={handlePlay}
               className="btn-tune-in"
+              style={{ gap: '8px' }}
             >
-              ▶️ PLAY!
+              <span className="material-symbols-outlined" style={{ fontSize: '28px' }}>play_arrow</span> PLAY!
             </button>
             <span className="neon-text-purple" style={{ fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '2px', opacity: 0.85 }}>
               Frequency Synced. Tap to Listen.
@@ -464,7 +492,7 @@ export default function App() {
               {currentTrack && currentTrack.logo ? (
                 <img src={currentTrack.logo} alt="Album Art" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               ) : (
-                <span style={{ fontSize: '38px' }}>🎵</span>
+                <span className="material-symbols-outlined" style={{ fontSize: '48px', color: '#71717a' }}>music_note</span>
               )}
             </div>
           </div>
@@ -657,7 +685,13 @@ export default function App() {
             boxShadow: currentTrack?.words ? '0 0 12px rgba(139, 92, 246, 0.2)' : 'none',
             letterSpacing: '1.5px',
             marginTop: '4px',
-            outline: 'none'
+            outline: 'none',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '6px',
+            marginLeft: 'auto',
+            marginRight: 'auto'
           }}
           onMouseOver={(e) => {
             if (currentTrack?.words) {
@@ -672,13 +706,13 @@ export default function App() {
             }
           }}
         >
-          🎤 LYRICS
+          <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>mic</span> LYRICS
         </button>
 
         {/* VOLUME CONTROL BAR */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '80%', marginTop: '6px' }}>
-          <span style={{ fontSize: '15px', color: '#71717a' }}>
-            {volume === 0 ? '🔇' : volume < 0.4 ? '🔈' : '🔊'}
+          <span className="material-symbols-outlined" style={{ fontSize: '20px', color: '#71717a' }}>
+            {volume === 0 ? 'volume_off' : volume < 0.4 ? 'volume_down' : 'volume_up'}
           </span>
           <input
             type="range"
@@ -729,7 +763,6 @@ export default function App() {
             border: 'none',
             color: showSettings ? 'var(--color-primary)' : '#444',
             cursor: 'pointer',
-            fontSize: '14px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -739,7 +772,7 @@ export default function App() {
           onMouseOver={(e) => { e.currentTarget.style.color = '#fff'; e.currentTarget.style.opacity = 1; }}
           onMouseOut={(e) => { e.currentTarget.style.color = showSettings ? 'var(--color-primary)' : '#444'; e.currentTarget.style.opacity = 0.5; }}
         >
-          ⚙️
+          <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>settings</span>
         </button>
 
       </div>
@@ -823,6 +856,60 @@ export default function App() {
           </button>
         </div>
 
+        {/* Search Input */}
+        <div style={{ position: 'relative', marginBottom: '16px' }}>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search tracks..."
+            style={{
+              width: '100%',
+              background: 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid var(--color-border)',
+              borderRadius: '20px',
+              padding: '10px 16px 10px 38px',
+              color: '#fff',
+              fontSize: '14px',
+              outline: 'none',
+              transition: 'all 0.2s',
+            }}
+            onFocus={(e) => {
+              e.target.style.border = '1px solid var(--color-primary)';
+              e.target.style.background = 'rgba(255, 255, 255, 0.08)';
+            }}
+            onBlur={(e) => {
+              e.target.style.border = '1px solid var(--color-border)';
+              e.target.style.background = 'rgba(255, 255, 255, 0.05)';
+            }}
+          />
+          <span className="material-symbols-outlined" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', fontSize: '18px', opacity: 0.5, pointerEvents: 'none' }}>
+            search
+          </span>
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              style={{
+                position: 'absolute',
+                right: '12px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                background: 'transparent',
+                border: 'none',
+                color: '#71717a',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '4px',
+                outline: 'none'
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>close</span>
+            </button>
+          )}
+        </div>
+
         {/* Tabs */}
         <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
           <button 
@@ -866,81 +953,88 @@ export default function App() {
         {/* Scrollable Container */}
         <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', paddingRight: '4px' }}>
           {activeTab === 'all' ? (
-            playlist.map((track, index) => {
-              const isCurrent = index === currentTrackIndex;
-              const isLiked = likedTrackUrls.includes(track.url);
-              return (
-                <div
-                  key={index}
-                  onClick={() => {
-                    setCurrentTrackIndex(index);
-                    setIsPlaying(true);
-                  }}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '12px',
-                    padding: '8px 12px',
-                    borderRadius: '10px',
-                    background: isCurrent ? 'rgba(4, 211, 97, 0.1)' : 'rgba(255, 255, 255, 0.02)',
-                    border: '1px solid ' + (isCurrent ? 'rgba(4, 211, 97, 0.3)' : 'transparent'),
-                    cursor: 'pointer',
-                    transition: 'all 0.2s',
-                    textAlign: 'left'
-                  }}
-                  onMouseOver={(e) => {
-                    if (!isCurrent) {
-                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)';
-                    }
-                  }}
-                  onMouseOut={(e) => {
-                    if (!isCurrent) {
-                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.02)';
-                    }
-                  }}
-                >
-                  {/* Thumbnail */}
-                  <div style={{ width: '40px', height: '40px', borderRadius: '6px', overflow: 'hidden', background: '#18181b', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    {track.logo ? (
-                      <img src={track.logo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    ) : (
-                      <span style={{ fontSize: '18px' }}>🎵</span>
-                    )}
-                  </div>
-                  {/* Info */}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span style={{ fontSize: '14px', fontWeight: 'bold', color: isCurrent ? 'var(--color-secondary)' : '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>
-                        {track.title}
-                      </span>
-                      {isLiked && (
-                        <span style={{ color: '#ef4444', fontSize: '11px', flexShrink: 0 }} title="Liked">❤️</span>
+            filteredPlaylist.length > 0 ? (
+              filteredPlaylist.map((track) => {
+                const isCurrent = track.originalIndex === currentTrackIndex;
+                const isLiked = likedTrackUrls.includes(track.url);
+                return (
+                  <div
+                    key={track.originalIndex}
+                    onClick={() => {
+                      setCurrentTrackIndex(track.originalIndex);
+                      setIsPlaying(true);
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '12px',
+                      padding: '8px 12px',
+                      borderRadius: '10px',
+                      background: isCurrent ? 'rgba(4, 211, 97, 0.1)' : 'rgba(255, 255, 255, 0.02)',
+                      border: '1px solid ' + (isCurrent ? 'rgba(4, 211, 97, 0.3)' : 'transparent'),
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      textAlign: 'left'
+                    }}
+                    onMouseOver={(e) => {
+                      if (!isCurrent) {
+                        e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)';
+                      }
+                    }}
+                    onMouseOut={(e) => {
+                      if (!isCurrent) {
+                        e.currentTarget.style.background = 'rgba(255, 255, 255, 0.02)';
+                      }
+                    }}
+                  >
+                    {/* Thumbnail */}
+                    <div style={{ width: '40px', height: '40px', borderRadius: '6px', overflow: 'hidden', background: '#18181b', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      {track.logo ? (
+                        <img src={track.logo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ) : (
+                        <span className="material-symbols-outlined" style={{ fontSize: '20px', color: '#71717a' }}>music_note</span>
                       )}
                     </div>
-                    <div style={{ fontSize: '12px', color: '#a1a1aa', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {track.artist}
+                    {/* Info */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontSize: '14px', fontWeight: 'bold', color: isCurrent ? 'var(--color-secondary)' : '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>
+                          {track.title}
+                        </span>
+                        {isLiked && (
+                          <span className="material-symbols-outlined material-symbols-filled" style={{ color: '#ef4444', fontSize: '14px', flexShrink: 0 }} title="Liked">favorite</span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#a1a1aa', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {track.artist}
+                      </div>
                     </div>
+                    {/* Status/Duration */}
+                    {isCurrent && isPlaying ? (
+                      <span className="material-symbols-outlined" style={{ color: 'var(--color-secondary)', fontSize: '18px' }}>volume_up</span>
+                    ) : (
+                      <span style={{ fontSize: '11px', color: '#71717a' }}>
+                        {formatTime(track.duration)}
+                      </span>
+                    )}
                   </div>
-                  {/* Status/Duration */}
-                  {isCurrent && isPlaying ? (
-                    <span style={{ color: 'var(--color-secondary)', fontSize: '14px' }}>🔊</span>
-                  ) : (
-                    <span style={{ fontSize: '11px', color: '#71717a' }}>
-                      {formatTime(track.duration)}
-                    </span>
-                  )}
-                </div>
-              );
-            })
-          ) : likedTracks.length > 0 ? (
-            likedTracks.map((track) => {
-              const mainIndex = playlist.findIndex(t => t.url === track.url);
-              const isCurrent = mainIndex === currentTrackIndex;
+                );
+              })
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '12px', color: '#71717a', padding: '40px 0' }}>
+                <span className="material-symbols-outlined" style={{ fontSize: '36px', color: '#71717a' }}>search</span>
+                <span style={{ fontSize: '14px', fontWeight: 'bold' }}>No tracks found</span>
+                <span style={{ fontSize: '12px', textAlign: 'center', opacity: 0.8 }}>Try searching for a different name.</span>
+              </div>
+            )
+          ) : filteredLikedTracks.length > 0 ? (
+            filteredLikedTracks.map((track) => {
+              const isCurrent = track.originalIndex === currentTrackIndex;
               return (
                 <div
                   key={track.url}
                   onClick={() => {
-                    setCurrentTrackIndex(mainIndex);
+                    setCurrentTrackIndex(track.originalIndex);
                     setIsPlaying(true);
                   }}
                   style={{
@@ -971,7 +1065,7 @@ export default function App() {
                     {track.logo ? (
                       <img src={track.logo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     ) : (
-                      <span style={{ fontSize: '18px' }}>🎵</span>
+                      <span className="material-symbols-outlined" style={{ fontSize: '20px', color: '#71717a' }}>music_note</span>
                     )}
                   </div>
                   {/* Info */}
@@ -980,7 +1074,7 @@ export default function App() {
                       <span style={{ fontSize: '14px', fontWeight: 'bold', color: isCurrent ? 'var(--color-secondary)' : '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>
                         {track.title}
                       </span>
-                      <span style={{ color: '#ef4444', fontSize: '11px', flexShrink: 0 }}>❤️</span>
+                      <span className="material-symbols-outlined material-symbols-filled" style={{ color: '#ef4444', fontSize: '14px', flexShrink: 0 }}>favorite</span>
                     </div>
                     <div style={{ fontSize: '12px', color: '#a1a1aa', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {track.artist}
@@ -988,7 +1082,7 @@ export default function App() {
                   </div>
                   {/* Status/Duration */}
                   {isCurrent && isPlaying ? (
-                    <span style={{ color: 'var(--color-secondary)', fontSize: '14px' }}>🔊</span>
+                    <span className="material-symbols-outlined" style={{ color: 'var(--color-secondary)', fontSize: '18px' }}>volume_up</span>
                   ) : (
                     <span style={{ fontSize: '11px', color: '#71717a' }}>
                       {formatTime(track.duration)}
@@ -999,9 +1093,19 @@ export default function App() {
             })
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '12px', color: '#71717a', padding: '40px 0' }}>
-              <span style={{ fontSize: '32px' }}>❤️</span>
-              <span style={{ fontSize: '14px', fontWeight: 'bold' }}>Liked list is empty</span>
-              <span style={{ fontSize: '12px', textAlign: 'center', opacity: 0.8 }}>Tracks you liked will appear here.</span>
+              {likedTracks.length === 0 ? (
+                <>
+                  <span className="material-symbols-outlined material-symbols-filled" style={{ fontSize: '36px', color: '#ef4444' }}>favorite</span>
+                  <span style={{ fontSize: '14px', fontWeight: 'bold' }}>Liked list is empty</span>
+                  <span style={{ fontSize: '12px', textAlign: 'center', opacity: 0.8 }}>Tracks you liked will appear here.</span>
+                </>
+              ) : (
+                <>
+                  <span className="material-symbols-outlined" style={{ fontSize: '36px', color: '#71717a' }}>search</span>
+                  <span style={{ fontSize: '14px', fontWeight: 'bold' }}>No liked tracks found</span>
+                  <span style={{ fontSize: '12px', textAlign: 'center', opacity: 0.8 }}>Try searching for a different name.</span>
+                </>
+              )}
             </div>
           )}
         </div>
