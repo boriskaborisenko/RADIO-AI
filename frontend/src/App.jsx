@@ -76,7 +76,15 @@ const parseM3U = (text) => {
 };
 
 export default function App() {
-  const [streamUrl, setStreamUrl] = useState(config.streamUrl);
+  const [streamUrl, setStreamUrl] = useState(() => {
+    const defaultUrl = config.streamUrl;
+    if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+      if (defaultUrl.includes('localhost') || defaultUrl.includes('127.0.0.1') || defaultUrl.includes('ngrok-free.app') || defaultUrl.includes('ngrok.dev')) {
+        return `${window.location.origin}/radio`;
+      }
+    }
+    return defaultUrl;
+  });
   const [urlInput, setUrlInput] = useState(config.streamUrl);
   const [playlist, setPlaylist] = useState([]);
   const [loading, setLoading] = useState(true);
