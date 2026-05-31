@@ -7,8 +7,8 @@ frontend/dist/
 dist/
 
 # Generated Playlist File (created dynamically)
-/radio
-/radio.m3u
+#/radio
+#/radio.m3u
 
 # Environment variables
 .env
