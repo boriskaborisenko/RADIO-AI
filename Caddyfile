@@ -1,0 +1,11 @@
+:{$PORT} {
+    root * /app/frontend/dist
+    file_server
+
+    # Reverse proxy backend requests to Express running on internal BACKEND_PORT
+    reverse_proxy /radio* localhost:{$BACKEND_PORT}
+    reverse_proxy /translate localhost:{$BACKEND_PORT}
+
+    # SPA fallback for React router
+    try_files {path} /index.html
+}

@@ -54,8 +54,11 @@ app.post('/translate', async (req, res) => {
   }
 });
 
-// Маршрут для отдачи плейлиста
-app.get('/radio', async (req, res) => {
+// Маршрут для отдачи плейлиста (поддерживает и /radio, и упрощенный /radio.m3u)
+app.get(['/radio', '/radio.m3u'], async (req, res) => {
+  const isSimplified = req.path.endsWith('.m3u');
+  const filename = isSimplified ? 'radio.m3u' : 'radio';
+
   // Получаем параметры из строки запроса (если переданы)
   const usernameParam = req.query.username || req.query.usernames || req.query.user;
   const loopParam = req.query.loop || req.query.repeat;
@@ -75,16 +78,16 @@ app.get('/radio', async (req, res) => {
     const usersArray = usernameParam.split(',').map(u => u.trim()).filter(Boolean);
     const sortedUsersStr = [...usersArray].sort().join(',');
 
-    const cacheKey = `${sortedUsersStr.toLowerCase()}-${loopCount}-${sortBy}-${shuffle}`;
+    const cacheKey = `${sortedUsersStr.toLowerCase()}-${loopCount}-${sortBy}-${shuffle}${isSimplified ? '-simplified' : ''}`;
     const cached = playlistCache.get(cacheKey);
     const now = Date.now();
 
     if (cached && now < cached.expiresAt) {
-      console.log(`[Server] Отдача плейлиста из кэша для [${usersArray.join(', ')}] (Рандомизация: ${shuffle}, зацикливание: ${loopCount})`);
+      console.log(`[Server] Отдача плейлиста из кэша для [${usersArray.join(', ')}] (Упрощенный: ${isSimplified}, Рандомизация: ${shuffle}, зацикливание: ${loopCount})`);
       return res.send(cached.content);
     }
 
-    console.log(`[Server] Динамический запрос для [${usersArray.join(', ')}] (Зацикливание: ${loopCount}, рандомизация: ${shuffle}, сортировка: ${sortBy}). Генерация...`);
+    console.log(`[Server] Динамический запрос для [${usersArray.join(', ')}] (Упрощенный: ${isSimplified}, Зацикливание: ${loopCount}, рандомизация: ${shuffle}, сортировка: ${sortBy}). Генерация...`);
     
     try {
       let allSongs = [];
@@ -114,7 +117,7 @@ app.get('/radio', async (req, res) => {
       }
       const uniqueSongs = Array.from(uniqueSongsMap.values());
 
-      const m3uContent = generateM3U(uniqueSongs, loopCount, usersArray, shuffle);
+      const m3uContent = generateM3U(uniqueSongs, loopCount, usersArray, shuffle, isSimplified);
       
       // Сохраняем в кэш
       playlistCache.set(cacheKey, {
@@ -130,23 +133,24 @@ app.get('/radio', async (req, res) => {
     }
   }
 
-  // Если параметров нет, отдаем статический файл 'radio' из корня проекта
-  const staticPlaylistPath = path.join(__dirname, 'radio');
+  // Если параметров нет, отдаем статический файл (radio или radio.m3u) из корня проекта
+  const staticPlaylistPath = path.join(__dirname, filename);
   
   try {
     // Проверяем существование статического файла
     await fs.access(staticPlaylistPath);
-    console.log(`[Server] Отдача статического файла плейлиста 'radio'`);
+    console.log(`[Server] Отдача статического файла плейлиста '${filename}'`);
     
     const content = await fs.readFile(staticPlaylistPath, 'utf-8');
     return res.send(content);
   } catch (error) {
     // Если файла нет, автоматически собираем его для пользователей по умолчанию при первом запросе
-    console.log(`[Server] Статический файл 'radio' не найден. Автоматическая генерация для [${config.defaultUsernames.join(', ')}]...`);
+    console.log(`[Server] Статический файл '${filename}' не найден. Автоматическая генерация для [${config.defaultUsernames.join(', ')}]...`);
     
     try {
       const generatedPath = await buildPlaylist(config.defaultUsernames, config.loopCount, config.sortBy, config.shuffle);
-      const content = await fs.readFile(generatedPath, 'utf-8');
+      const targetPath = isSimplified ? `${generatedPath}.m3u` : generatedPath;
+      const content = await fs.readFile(targetPath, 'utf-8');
       return res.send(content);
     } catch (genError) {
       console.error(`[Server] Не удалось автосгенерировать плейлист при старте:`, genError.message);
@@ -179,26 +183,29 @@ app.get('/', (req, res) => {
         <p>Ваш сервер запущен и готов к раздаче плейлиста!</p>
         
         <div class="card">
-          <h3>🔗 Ссылка на плейлист по умолчанию (${config.defaultUsernames.map(u => '@' + u).join(', ')}):</h3>
-          <p><a href="/radio" target="_blank" class="highlight">http://localhost:${config.port}/radio</a></p>
+          <h3>🔗 Ссылки на плейлисты по умолчанию (${config.defaultUsernames.map(u => '@' + u).join(', ')}):</h3>
+          <p>📝 <strong>Подробный плейлист (с текстами песен и ID):</strong><br>
+          <a href="/radio" target="_blank" class="highlight">http://localhost:${config.port}/radio</a></p>
+          <p>📻 <strong>Упрощенный плейлист (без текстов, максимальная совместимость с плеерами):</strong><br>
+          <a href="/radio.m3u" target="_blank" class="highlight">http://localhost:${config.port}/radio.m3u</a></p>
         </div>
 
         <div class="card">
           <h3>⚡ Динамические возможности (на лету):</h3>
-          <p>Вы можете сгенерировать плейлист для <strong>одного или нескольких</strong> пользователей Suno, просто передав их через запятую в параметре:</p>
+          <p>Вы можете сгенерировать плейлист для <strong>одного или нескольких</strong> пользователей Suno, просто передав их через запятую в параметре. Поддерживаются оба формата (подробный и упрощенный):</p>
           <ul>
-            <li>Плейлист для одного юзера: <br><code>/radio?username=ИМЯ_ЮЗЕРА</code></li>
-            <li>Плейлист для нескольких авторов вместе: <br><code>/radio?username=kinkypanda,another_user</code></li>
-            <li>Задать зацикливание (повторить песни 10 раз): <br><code>/radio?username=kinkypanda&loop=10</code></li>
-            <li>Включить или отключить перемешивание (shuffle): <br><code>/radio?username=kinkypanda&shuffle=true</code> или <code>/radio?username=kinkypanda&shuffle=false</code></li>
-            <li>Сортировка по новизне (вместо популярности): <br><code>/radio?username=kinkypanda&sort=created_at</code></li>
+            <li>Плейлист для одного юзера (упрощенный): <br><code>/radio.m3u?username=ИМЯ_ЮЗЕРА</code></li>
+            <li>Плейлист для нескольких авторов вместе (подробный): <br><code>/radio?username=kinkypanda,another_user</code></li>
+            <li>Задать зацикливание (повторить песни 10 раз): <br><code>/radio.m3u?username=kinkypanda&loop=10</code></li>
+            <li>Включить или отключить перемешивание (shuffle): <br><code>/radio.m3u?username=kinkypanda&shuffle=true</code> или <code>/radio.m3u?username=kinkypanda&shuffle=false</code></li>
+            <li>Сортировка по новизне (вместо популярности): <br><code>/radio.m3u?username=kinkypanda&sort=created_at</code></li>
           </ul>
         </div>
 
         <div class="card">
           <h3>🔌 Как запустить во внешний мир с ngrok:</h3>
           <pre>ngrok http ${config.port}</pre>
-          <p>После этого используйте выданную ссылку формата <code>https://xxxx.ngrok-free.app/radio</code> в любом IPTV-плеере, VLC, Kodi или OttPlayer!</p>
+          <p>После этого используйте выданную ссылку формата <code>https://xxxx.ngrok-free.app/radio</code> или <code>https://xxxx.ngrok-free.app/radio.m3u</code> в любом IPTV-плеере, VLC, Kodi или OttPlayer!</p>
         </div>
       </body>
     </html>
@@ -209,18 +216,21 @@ app.get('/', (req, res) => {
 app.listen(config.port, async () => {
   console.log(`==================================================`);
   console.log(`📻 Express сервер радио запущен на порту ${config.port}`);
-  console.log(`🔗 Локальный адрес плейлиста: http://localhost:${config.port}/radio`);
+  console.log(`🔗 Локальный адрес плейлиста (подробный): http://localhost:${config.port}/radio`);
+  console.log(`🔗 Локальный адрес плейлиста (упрощенный): http://localhost:${config.port}/radio.m3u`);
   console.log(`==================================================`);
   
-  // При старте проверяем наличие файла плейлиста, если его нет — создаем фоном для быстродействия первого запроса
+  // При старте проверяем наличие файлов плейлистов, если их нет — создаем фоном для быстродействия первого запроса
   const staticPlaylistPath = path.join(__dirname, 'radio');
+  const staticPlaylistM3uPath = path.join(__dirname, 'radio.m3u');
   try {
     await fs.access(staticPlaylistPath);
-    console.log(`[Server] Найден готовый статический файл 'radio'. Он будет отдаваться по умолчанию.`);
+    await fs.access(staticPlaylistM3uPath);
+    console.log(`[Server] Найдены готовые статические файлы 'radio' и 'radio.m3u'. Они будут отдаваться по умолчанию.`);
   } catch {
-    console.log(`[Server] Статический файл 'radio' отсутствует. Запуск фоновой предварительной генерации...`);
+    console.log(`[Server] Статические файлы плейлистов отсутствуют. Запуск фоновой предварительной генерации...`);
     buildPlaylist(config.defaultUsernames, config.loopCount, config.sortBy, config.shuffle)
-      .then(() => console.log(`[Server] Фоновая генерация завершена. Файл 'radio' успешно создан.`))
+      .then(() => console.log(`[Server] Фоновая генерация завершена. Файлы 'radio' и 'radio.m3u' успешно созданы.`))
       .catch((err) => console.error(`[Server] Ошибка фоновой генерации при старте:`, err.message));
   }
 });

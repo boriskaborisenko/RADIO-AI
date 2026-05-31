@@ -130,10 +130,11 @@ export async function fetchSongs(userId, sortBy = config.sortBy) {
  * @param {number} loopCount Количество повторов всего плейлиста
  * @param {Array<string>|string} usernames Имена пользователей для подписи
  * @param {boolean} shuffle Перемешивать ли треки
+ * @param {boolean} simplified Генерировать ли упрощенную версию без слов и ID
  * @returns {string}
  */
-export function generateM3U(songs, loopCount = config.loopCount, usernames = config.defaultUsernames, shuffle = config.shuffle) {
-  console.log(`[Generator] Генерация M3U плейлиста (треков: ${songs.length}, циклов повтора: ${loopCount}, перемешивание: ${shuffle})...`);
+export function generateM3U(songs, loopCount = config.loopCount, usernames = config.defaultUsernames, shuffle = config.shuffle, simplified = false) {
+  console.log(`[Generator] Генерация M3U плейлиста (треков: ${songs.length}, циклов повтора: ${loopCount}, перемешивание: ${shuffle}, упрощенный: ${simplified})...`);
   
   let m3u = `#EXTM3U\n`;
   // Добавляем теги для плееров, помогающие зацикливанию
@@ -200,12 +201,17 @@ export function generateM3U(songs, loopCount = config.loopCount, usernames = con
       // Название песни
       const title = clean(song.title || 'Untitled Song');
 
-      // Слова/Текст песни
-      const prompt = song.metadata?.prompt || '';
-      const hasVerse = prompt.toLowerCase().includes('[verse');
-      const wordsAttr = hasVerse ? `words="${cleanLyrics(prompt)}"` : 'words=""';
+      if (simplified) {
+        m3u += `#EXTINF:${duration} tvg-logo="${tvgLogo}" group-title="${groupTitle}",${artist} - ${title}\n`;
+      } else {
+        // Слова/Текст песни
+        const prompt = song.metadata?.prompt || '';
+        const hasVerse = prompt.toLowerCase().includes('[verse');
+        const wordsAttr = hasVerse ? `words="${cleanLyrics(prompt)}"` : 'words=""';
+        const videoAttr = song.video_cover_url ? `video-cover-url="${song.video_cover_url}"` : 'video-cover-url=""';
 
-      m3u += `#EXTINF:${duration} tvg-logo="${tvgLogo}" group-title="${groupTitle}" suno-id="${song.id || ''}" ${wordsAttr},${artist} - ${title}\n`;
+        m3u += `#EXTINF:${duration} tvg-logo="${tvgLogo}" group-title="${groupTitle}" suno-id="${song.id || ''}" ${wordsAttr} ${videoAttr},${artist} - ${title}\n`;
+      }
       m3u += `${audioUrl}\n\n`;
       totalAddedCount++;
     }
@@ -260,11 +266,15 @@ export async function buildPlaylist(usernames = config.defaultUsernames, loopCou
     const uniqueSongs = Array.from(uniqueSongsMap.values());
     console.log(`[Generator] Общий пул уникальных треков со всех аккаунтов: ${uniqueSongs.length}`);
 
-    const m3uContent = generateM3U(uniqueSongs, loopCount, usersArray, shuffle);
+    const m3uContent = generateM3U(uniqueSongs, loopCount, usersArray, shuffle, false);
+    const m3uContentSimplified = generateM3U(uniqueSongs, loopCount, usersArray, shuffle, true);
     const outputPath = path.join(__dirname, 'radio');
+    const outputPathSimplified = path.join(__dirname, 'radio.m3u');
     
     await fs.writeFile(outputPath, m3uContent, 'utf-8');
+    await fs.writeFile(outputPathSimplified, m3uContentSimplified, 'utf-8');
     console.log(`[Generator] Успешно сохранен файл плейлиста: ${outputPath}`);
+    console.log(`[Generator] Успешно сохранен упрощенный файл плейлиста: ${outputPathSimplified}`);
     
     return outputPath;
   } catch (error) {

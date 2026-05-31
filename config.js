@@ -6,8 +6,8 @@ export const config = {
   // Перемешивать ли треки случайным образом для разнообразия эфира (true/false)
   shuffle: true,
   
-  // Порт Express сервера (по требованию пользователя: http://localhost:3333/live)
-  port: 3333,
+  // Порт Express сервера (с поддержкой динамического биндинга портов в Docker/Render)
+  port: process.env.BACKEND_PORT ? parseInt(process.env.BACKEND_PORT, 10) : (process.env.PORT ? parseInt(process.env.PORT, 10) : 3333),
   
   // Сколько раз повторить список треков внутри одного плейлиста для бесконечной зацикленности.
   // Например, если песен 50, а loopCount = 10, в плейлисте будет 500 треков подряд.

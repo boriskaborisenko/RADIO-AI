@@ -32,6 +32,10 @@ const parseM3U = (text) => {
       const wordsMatch = line.match(/words="([^"]*)"/);
       const words = wordsMatch ? wordsMatch[1] : '';
 
+      // Parse track video (video-cover-url)
+      const videoUrlMatch = line.match(/video-cover-url="([^"]*)"/);
+      const videoUrl = videoUrlMatch ? videoUrlMatch[1] : '';
+
       // Parse artist and song title from the rest of the line (after the comma)
       const commaIndex = line.indexOf(',');
       let artist = 'AI Artist';
@@ -48,7 +52,7 @@ const parseM3U = (text) => {
         }
       }
 
-      currentTrack = { duration, logo, genre, artist, title, id, words };
+      currentTrack = { duration, logo, genre, artist, title, id, words, videoUrl };
     } else if (line.startsWith('http://') || line.startsWith('https://')) {
       if (currentTrack) {
         currentTrack.url = line;
@@ -109,6 +113,7 @@ export default function App() {
       return [];
     }
   });
+  const [shareStatus, setShareStatus] = useState('');
 
   const audioRef = useRef(null);
 
@@ -212,8 +217,24 @@ export default function App() {
     }
   };
 
+  const handleShareSong = () => {
+    if (!currentTrack || !currentTrack.id) return;
+    
+    const shareUrl = `https://suno.com/song/${currentTrack.id}`;
+    navigator.clipboard.writeText(shareUrl)
+      .then(() => {
+        setShareStatus('Copied!');
+        setTimeout(() => setShareStatus(''), 2000);
+      })
+      .catch((err) => {
+        console.error('[Share] Failed to copy link:', err);
+      });
+  };
+
   const currentTrack = playlist[currentTrackIndex];
   const likedTracks = playlist.filter(track => likedTrackUrls.includes(track.url));
+  const percentage = trackDuration && !isNaN(trackDuration) ? (currentTime / trackDuration) * 100 : 0;
+  const volumePercentage = volume * 100;
 
   // Filter playlist based on search query
   const filteredPlaylist = playlist
@@ -413,21 +434,43 @@ export default function App() {
         />
       )}
 
-      {/* FULL SCREEN DYNAMIC BLURRED BACKGROUND ARTWORK */}
-      <div style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        width: '100vw',
-        height: '100vh',
-        backgroundImage: currentTrack?.logo ? `url(${currentTrack.logo})` : 'none',
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        filter: 'blur(90px) saturate(2)',
-        opacity: 0.25,
-        zIndex: -1,
-        transition: 'background-image 1.2s ease-in-out'
-      }} />
+      {/* FULL SCREEN DYNAMIC BACKGROUND (VIDEO OR BLURRED ARTWORK) */}
+      {currentTrack?.videoUrl ? (
+        <video
+          key={currentTrack.videoUrl}
+          src={currentTrack.videoUrl}
+          autoPlay
+          loop
+          muted
+          playsInline
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            objectFit: 'cover',
+            filter: 'blur(90px) saturate(2)',
+            opacity: 0.25,
+            zIndex: -1
+          }}
+        />
+      ) : (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100vw',
+          height: '100vh',
+          backgroundImage: currentTrack?.logo ? `url(${currentTrack.logo})` : 'none',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          filter: 'blur(90px) saturate(2)',
+          opacity: 0.25,
+          zIndex: -1,
+          transition: 'background-image 1.2s ease-in-out'
+        }} />
+      )}
 
       {/* MINIMALIST CARD (Background and Border made completely transparent/invisible!) */}
       <div 
@@ -446,90 +489,50 @@ export default function App() {
           position: 'relative'
         }}
       >
-        
-        {/* On Air Status Indicator */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', alignSelf: 'flex-start', background: 'rgba(0, 0, 0, 0.35)', border: '1px solid var(--color-border)', borderRadius: '12px', padding: '5px 12px', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1.5px' }}>
-          <span style={{ 
-            width: '6px', 
-            height: '6px', 
-            borderRadius: '50%', 
-            background: isPlaying ? 'var(--color-secondary)' : '#71717a',
-            boxShadow: isPlaying ? '0 0 8px var(--color-secondary)' : 'none',
-            display: 'inline-block'
-          }} />
-          <span style={{ color: isPlaying ? '#fff' : '#71717a' }}>ON AIR</span>
-        </div>
 
-        {/* Large Vinyl Disc Player (Made significantly larger: 280px) */}
-        <div style={{ position: 'relative', width: '290px', height: '280px', display: 'flex', justifyContent: 'center' }}>
-          {/* Vinyl record plate */}
+        {/* Album Artwork Cover (Square with rounded corners) */}
+        <div style={{ position: 'relative', width: '280px', height: '280px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
           <div 
-            className={`animate-spin-slow neon-glow-purple ${!isPlaying ? 'paused' : ''}`}
             style={{
               width: '280px',
               height: '280px',
-              borderRadius: '50%',
-              background: 'repeating-radial-gradient(circle, #18181b, #09090b 2px, #18181b 4px)',
-              border: '9px solid #27272a',
+              borderRadius: '16px',
+              overflow: 'hidden',
+              background: '#18181b',
+              border: '1px solid var(--color-border)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              boxShadow: '0 15px 40px rgba(0,0,0,0.6)'
+              boxShadow: '0 15px 40px rgba(0,0,0,0.6), 0 0 20px var(--color-primary-glow)'
             }}
           >
-            {/* Album Cover Art Center circle (Increased size: 110px) */}
-            <div style={{
-              width: '110px',
-              height: '110px',
-              borderRadius: '50%',
-              overflow: 'hidden',
-              border: '4px solid #09090b',
-              background: '#18181b',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              {currentTrack && currentTrack.logo ? (
-                <img src={currentTrack.logo} alt="Album Art" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              ) : (
-                <span className="material-symbols-outlined" style={{ fontSize: '48px', color: '#71717a' }}>music_note</span>
-              )}
-            </div>
-          </div>
-          
-          {/* Record needle pin arm */}
-          <div style={{
-            position: 'absolute',
-            top: '-15px',
-            right: '20px',
-            width: '70px',
-            height: '95px',
-            transformOrigin: 'top right',
-            transform: isPlaying ? 'rotate(15deg)' : 'rotate(0deg)',
-            transition: 'transform 0.5s ease-out',
-            pointerEvents: 'none',
-            zIndex: 10
-          }}>
-            <svg width="70" height="95" viewBox="0 0 60 80" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M50 5 L50 40 L20 60 L15 55" stroke="#a1a1aa" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"/>
-              <circle cx="50" cy="5" r="5" fill="#e1e1e6" />
-              <rect x="10" y="55" width="10" height="15" rx="2" fill="#71717a" transform="rotate(30 10 55)"/>
-            </svg>
+            {currentTrack && currentTrack.videoUrl ? (
+              <video
+                key={currentTrack.videoUrl}
+                src={currentTrack.videoUrl}
+                autoPlay
+                loop
+                muted
+                playsInline
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              />
+            ) : currentTrack && currentTrack.logo ? (
+              <img src={currentTrack.logo} alt="Album Art" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : (
+              <span className="material-symbols-outlined" style={{ fontSize: '72px', color: '#71717a' }}>music_note</span>
+            )}
           </div>
         </div>
 
         {/* Current song details (Enlarged fonts) */}
-        <div style={{ width: '100%', minHeight: '94px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        <div style={{ width: '100%', minHeight: '64px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
           {currentTrack ? (
             <>
               <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', padding: '0 5px' }}>
                 {currentTrack.title}
               </h2>
-              <p className="neon-text-purple" style={{ fontSize: '17px', fontWeight: '500', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', padding: '0 5px', width: '100%' }}>
-                {currentTrack.artist}
-              </p>
               <div style={{ display: 'flex', justifyContent: 'center', marginTop: '4px' }}>
-                <span style={{ background: 'rgba(139, 92, 246, 0.12)', border: '1px solid rgba(139, 92, 246, 0.25)', borderRadius: '14px', padding: '3px 12px', fontSize: '12px', color: '#c084fc', maxWidth: '280px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <span style={{ background: 'rgba(255, 255, 255, 0.06)', border: '1px solid rgba(255, 255, 255, 0.15)', borderRadius: '14px', padding: '3px 12px', fontSize: '12px', color: '#e4e4e7', maxWidth: '280px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {currentTrack.genre}
                 </span>
               </div>
@@ -540,15 +543,10 @@ export default function App() {
         </div>
 
         {/* Pulsing visualizer eq bars */}
-        <div className="eq-container" style={{ opacity: isPlaying ? 1 : 0.1, transition: 'opacity 0.3s', height: '32px' }}>
-          <div className="eq-bar"></div>
-          <div className="eq-bar"></div>
-          <div className="eq-bar"></div>
-          <div className="eq-bar"></div>
-          <div className="eq-bar"></div>
-          <div className="eq-bar"></div>
-          <div className="eq-bar"></div>
-          <div className="eq-bar"></div>
+        <div className="eq-container" style={{ opacity: isPlaying ? 1 : 0.1, transition: 'opacity 0.3s', height: '32px', gap: '4px' }}>
+          {Array.from({ length: 15 }).map((_, i) => (
+            <div key={i} className={`eq-bar ${!isPlaying ? 'paused' : ''}`} />
+          ))}
         </div>
 
         {/* Media position track progress bar */}
@@ -560,10 +558,11 @@ export default function App() {
             value={currentTime}
             onChange={handleProgressChange}
             disabled={playlist.length === 0}
+            className="progress-bar-flat"
             style={{
               width: '100%',
-              accentColor: 'var(--color-secondary)',
-              cursor: playlist.length === 0 ? 'not-allowed' : 'pointer'
+              cursor: playlist.length === 0 ? 'not-allowed' : 'pointer',
+              background: `linear-gradient(to right, #fff 0%, #fff ${percentage}%, rgba(255, 255, 255, 0.1) ${percentage}%, rgba(255, 255, 255, 0.1) 100%)`
             }}
           />
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#71717a' }}>
@@ -606,7 +605,7 @@ export default function App() {
           </button>
           
           <button 
-            className="btn-control btn-control-active" 
+            className="btn-control btn-play" 
             onClick={handlePlayPause} 
             style={{ width: '72px', height: '72px' }}
             disabled={playlist.length === 0}
@@ -637,7 +636,6 @@ export default function App() {
                 height: '44px', 
                 cursor: 'pointer',
                 color: likedTrackUrls.includes(currentTrack.url) ? '#ef4444' : '#71717a',
-                borderColor: likedTrackUrls.includes(currentTrack.url) ? 'rgba(239, 68, 68, 0.3)' : 'var(--color-border)',
                 boxShadow: likedTrackUrls.includes(currentTrack.url) ? '0 0 10px rgba(239, 68, 68, 0.3)' : 'none'
               }}
               title={likedTrackUrls.includes(currentTrack.url) ? "Unlike" : "Like"}
@@ -673,8 +671,8 @@ export default function App() {
           disabled={!currentTrack?.words}
           onClick={() => setIsLyricsOpen(true)}
           style={{
-            background: currentTrack?.words ? 'rgba(139, 92, 246, 0.15)' : 'rgba(255, 255, 255, 0.02)',
-            border: '1px solid ' + (currentTrack?.words ? 'var(--color-primary)' : 'rgba(255, 255, 255, 0.05)'),
+            background: currentTrack?.words ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.02)',
+            border: '1px solid ' + (currentTrack?.words ? 'rgba(255, 255, 255, 0.2)' : 'rgba(255, 255, 255, 0.05)'),
             borderRadius: '20px',
             padding: '8px 24px',
             color: currentTrack?.words ? '#fff' : '#4b5563',
@@ -682,7 +680,7 @@ export default function App() {
             fontWeight: 'bold',
             cursor: currentTrack?.words ? 'pointer' : 'not-allowed',
             transition: 'all 0.2s',
-            boxShadow: currentTrack?.words ? '0 0 12px rgba(139, 92, 246, 0.2)' : 'none',
+            boxShadow: currentTrack?.words ? '0 0 12px rgba(255, 255, 255, 0.1)' : 'none',
             letterSpacing: '1.5px',
             marginTop: '4px',
             outline: 'none',
@@ -695,14 +693,14 @@ export default function App() {
           }}
           onMouseOver={(e) => {
             if (currentTrack?.words) {
-              e.currentTarget.style.background = 'var(--color-primary)';
-              e.currentTarget.style.boxShadow = '0 0 20px var(--color-primary-glow)';
+              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';
+              e.currentTarget.style.boxShadow = '0 0 20px rgba(255, 255, 255, 0.15)';
             }
           }}
           onMouseOut={(e) => {
             if (currentTrack?.words) {
-              e.currentTarget.style.background = 'rgba(139, 92, 246, 0.15)';
-              e.currentTarget.style.boxShadow = '0 0 12px rgba(139, 92, 246, 0.2)';
+              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+              e.currentTarget.style.boxShadow = 'none';
             }
           }}
         >
@@ -722,58 +720,56 @@ export default function App() {
             value={volume}
             onChange={(e) => setVolume(parseFloat(e.target.value))}
             className="slider"
+            style={{
+              background: `linear-gradient(to right, rgba(255, 255, 255, 0.7) 0%, rgba(255, 255, 255, 0.7) ${volumePercentage}%, rgba(255, 255, 255, 0.2) ${volumePercentage}%, rgba(255, 255, 255, 0.2) 100%)`
+            }}
           />
         </div>
 
-        {/* COLLAPSIBLE STREAM SETTINGS FORM PANEL */}
-        <div style={{
-          width: '100%',
-          maxHeight: showSettings ? '120px' : '0px',
-          overflow: 'hidden',
-          transition: 'max-height 0.3s ease-in-out',
-          borderTop: showSettings ? '1px solid var(--color-border)' : 'none',
-          paddingTop: showSettings ? '12px' : '0px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '8px'
-        }}>
-          <input
-            type="text"
-            value={urlInput}
-            onChange={(e) => setUrlInput(e.target.value)}
-            placeholder="M3U Stream URL"
-            style={{ width: '100%', background: '#121214', border: '1px solid var(--color-border)', borderRadius: '6px', padding: '6px 10px', color: '#fff', fontSize: '11px', outline: 'none' }}
-          />
-          <button
-            onClick={() => { setStreamUrl(urlInput); setShowSettings(false); }}
-            style={{ width: '100%', background: 'var(--color-primary)', border: 'none', borderRadius: '6px', padding: '6px', color: '#fff', fontSize: '11px', fontWeight: '500', cursor: 'pointer' }}
-          >
-            Update Stream
-          </button>
-        </div>
-
-        {/* COG SETTINGS BTN AT CORNER */}
+        {/* SHARE SONG BUTTON */}
         <button
-          onClick={() => setShowSettings(!showSettings)}
+          disabled={!currentTrack?.id}
+          onClick={handleShareSong}
           style={{
-            position: 'absolute',
-            bottom: '12px',
-            right: '12px',
-            background: 'transparent',
-            border: 'none',
-            color: showSettings ? 'var(--color-primary)' : '#444',
-            cursor: 'pointer',
+            background: 'rgba(255, 255, 255, 0.08)',
+            border: '1px solid rgba(255, 255, 255, 0.2)',
+            borderRadius: '20px',
+            padding: '8px 24px',
+            color: '#fff',
+            fontSize: '13px',
+            fontWeight: 'bold',
+            cursor: currentTrack?.id ? 'pointer' : 'not-allowed',
+            transition: 'all 0.2s',
+            letterSpacing: '1.5px',
+            marginTop: '8px',
+            outline: 'none',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            transition: 'color 0.2s',
-            opacity: 0.5
+            gap: '6px',
+            marginLeft: 'auto',
+            marginRight: 'auto',
+            opacity: currentTrack?.id ? 1 : 0.5,
           }}
-          onMouseOver={(e) => { e.currentTarget.style.color = '#fff'; e.currentTarget.style.opacity = 1; }}
-          onMouseOut={(e) => { e.currentTarget.style.color = showSettings ? 'var(--color-primary)' : '#444'; e.currentTarget.style.opacity = 0.5; }}
+          onMouseOver={(e) => {
+            if (currentTrack?.id) {
+              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.18)';
+              e.currentTarget.style.boxShadow = '0 0 15px rgba(255, 255, 255, 0.1)';
+            }
+          }}
+          onMouseOut={(e) => {
+            if (currentTrack?.id) {
+              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+              e.currentTarget.style.boxShadow = 'none';
+            }
+          }}
         >
-          <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>settings</span>
+          <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
+            {shareStatus ? 'check' : 'share'}
+          </span> 
+          {shareStatus ? 'COPIED!' : 'SHARE SONG'}
         </button>
+
 
       </div>
 
@@ -919,7 +915,7 @@ export default function App() {
               padding: '8px 12px',
               borderRadius: '20px',
               background: activeTab === 'all' ? 'var(--color-primary)' : 'rgba(255, 255, 255, 0.05)',
-              color: activeTab === 'all' ? '#fff' : '#a1a1aa',
+              color: activeTab === 'all' ? '#050507' : '#a1a1aa',
               border: '1px solid ' + (activeTab === 'all' ? 'var(--color-primary)' : 'var(--color-border)'),
               fontSize: '13px',
               fontWeight: 'bold',
@@ -937,7 +933,7 @@ export default function App() {
               padding: '8px 12px',
               borderRadius: '20px',
               background: activeTab === 'liked' ? 'var(--color-primary)' : 'rgba(255, 255, 255, 0.05)',
-              color: activeTab === 'liked' ? '#fff' : '#a1a1aa',
+              color: activeTab === 'liked' ? '#050507' : '#a1a1aa',
               border: '1px solid ' + (activeTab === 'liked' ? 'var(--color-primary)' : 'var(--color-border)'),
               fontSize: '13px',
               fontWeight: 'bold',
@@ -970,8 +966,8 @@ export default function App() {
                       gap: '12px',
                       padding: '8px 12px',
                       borderRadius: '10px',
-                      background: isCurrent ? 'rgba(4, 211, 97, 0.1)' : 'rgba(255, 255, 255, 0.02)',
-                      border: '1px solid ' + (isCurrent ? 'rgba(4, 211, 97, 0.3)' : 'transparent'),
+                      background: isCurrent ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.02)',
+                      border: '1px solid ' + (isCurrent ? 'rgba(255, 255, 255, 0.15)' : 'transparent'),
                       cursor: 'pointer',
                       transition: 'all 0.2s',
                       textAlign: 'left'
@@ -998,20 +994,20 @@ export default function App() {
                     {/* Info */}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span style={{ fontSize: '14px', fontWeight: 'bold', color: isCurrent ? 'var(--color-secondary)' : '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>
+                        <span style={{ fontSize: '14px', fontWeight: 'bold', color: isCurrent ? '#ffffff' : '#a1a1aa', textShadow: isCurrent ? '0 0 10px rgba(255, 255, 255, 0.3)' : 'none', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>
                           {track.title}
                         </span>
                         {isLiked && (
                           <span className="material-symbols-outlined material-symbols-filled" style={{ color: '#ef4444', fontSize: '14px', flexShrink: 0 }} title="Liked">favorite</span>
                         )}
                       </div>
-                      <div style={{ fontSize: '12px', color: '#a1a1aa', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      <div style={{ fontSize: '12px', color: isCurrent ? '#e4e4e7' : '#71717a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {track.artist}
                       </div>
                     </div>
                     {/* Status/Duration */}
                     {isCurrent && isPlaying ? (
-                      <span className="material-symbols-outlined" style={{ color: 'var(--color-secondary)', fontSize: '18px' }}>volume_up</span>
+                      <span className="material-symbols-outlined" style={{ color: '#ffffff', fontSize: '18px' }}>volume_up</span>
                     ) : (
                       <span style={{ fontSize: '11px', color: '#71717a' }}>
                         {formatTime(track.duration)}
@@ -1043,8 +1039,8 @@ export default function App() {
                     gap: '12px',
                     padding: '8px 12px',
                     borderRadius: '10px',
-                    background: isCurrent ? 'rgba(4, 211, 97, 0.1)' : 'rgba(255, 255, 255, 0.02)',
-                    border: '1px solid ' + (isCurrent ? 'rgba(4, 211, 97, 0.3)' : 'transparent'),
+                    background: isCurrent ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.02)',
+                    border: '1px solid ' + (isCurrent ? 'rgba(255, 255, 255, 0.15)' : 'transparent'),
                     cursor: 'pointer',
                     transition: 'all 0.2s',
                     textAlign: 'left'
@@ -1071,18 +1067,18 @@ export default function App() {
                   {/* Info */}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span style={{ fontSize: '14px', fontWeight: 'bold', color: isCurrent ? 'var(--color-secondary)' : '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>
+                      <span style={{ fontSize: '14px', fontWeight: 'bold', color: isCurrent ? '#ffffff' : '#a1a1aa', textShadow: isCurrent ? '0 0 10px rgba(255, 255, 255, 0.3)' : 'none', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>
                         {track.title}
                       </span>
                       <span className="material-symbols-outlined material-symbols-filled" style={{ color: '#ef4444', fontSize: '14px', flexShrink: 0 }}>favorite</span>
                     </div>
-                    <div style={{ fontSize: '12px', color: '#a1a1aa', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <div style={{ fontSize: '12px', color: isCurrent ? '#e4e4e7' : '#71717a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {track.artist}
                     </div>
                   </div>
                   {/* Status/Duration */}
                   {isCurrent && isPlaying ? (
-                    <span className="material-symbols-outlined" style={{ color: 'var(--color-secondary)', fontSize: '18px' }}>volume_up</span>
+                    <span className="material-symbols-outlined" style={{ color: '#ffffff', fontSize: '18px' }}>volume_up</span>
                   ) : (
                     <span style={{ fontSize: '11px', color: '#71717a' }}>
                       {formatTime(track.duration)}
@@ -1155,7 +1151,7 @@ export default function App() {
             <h3 style={{ fontSize: '18px', fontWeight: 'bold', color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {currentTrack?.title || 'No track selected'}
             </h3>
-            <p style={{ fontSize: '14px', color: '#a78bfa', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <p style={{ fontSize: '14px', color: '#d4d4d8', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {currentTrack?.artist || ''}
             </p>
           </div>
@@ -1210,12 +1206,12 @@ export default function App() {
               onClick={handleTranslate}
               disabled={isTranslating || !currentTrack?.words}
               style={{
-                background: translatedWords ? 'rgba(4, 211, 97, 0.2)' : 'var(--color-primary)',
-                border: translatedWords ? '1px solid var(--color-secondary)' : 'none',
+                background: translatedWords ? 'rgba(255, 255, 255, 0.15)' : '#ffffff',
+                border: translatedWords ? '1px solid rgba(255, 255, 255, 0.3)' : 'none',
                 borderRadius: '6px',
                 padding: '6px 12px',
-                color: translatedWords ? 'var(--color-secondary)' : '#fff',
-                boxShadow: translatedWords ? '0 0 10px var(--color-secondary-glow)' : 'none',
+                color: translatedWords ? '#ffffff' : '#050507',
+                boxShadow: translatedWords ? '0 0 10px rgba(255, 255, 255, 0.2)' : 'none',
                 fontSize: '12px',
                 fontWeight: 'bold',
                 cursor: (!currentTrack?.words) ? 'not-allowed' : 'pointer',
@@ -1231,12 +1227,12 @@ export default function App() {
               onClick={() => setTranslatedWords(null)}
               disabled={isTranslating}
               style={{
-                background: !translatedWords ? 'rgba(139, 92, 246, 0.2)' : 'rgba(255, 255, 255, 0.08)',
-                border: !translatedWords ? '1px solid var(--color-primary)' : '1px solid rgba(255, 255, 255, 0.1)',
+                background: !translatedWords ? 'rgba(255, 255, 255, 0.15)' : 'rgba(255, 255, 255, 0.08)',
+                border: !translatedWords ? '1px solid #ffffff' : '1px solid rgba(255, 255, 255, 0.1)',
                 borderRadius: '6px',
                 padding: '6px 12px',
                 color: !translatedWords ? '#fff' : '#e1e1e6',
-                boxShadow: !translatedWords ? '0 0 10px var(--color-primary-glow)' : 'none',
+                boxShadow: !translatedWords ? '0 0 10px rgba(255, 255, 255, 0.1)' : 'none',
                 fontSize: '12px',
                 fontWeight: 'bold',
                 cursor: 'pointer',
@@ -1278,7 +1274,7 @@ export default function App() {
                       opacity: 0.45, 
                       fontSize: '12px', 
                       fontWeight: '800', 
-                      color: '#c084fc', 
+                      color: '#d4d4d8', 
                       letterSpacing: '1.5px',
                       textTransform: 'uppercase'
                     }}
