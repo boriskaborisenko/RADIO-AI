@@ -36,6 +36,9 @@ app.use((req, res, next) => {
   next();
 });
 
+// Раздача статических файлов фронтенда из директории frontend/dist
+app.use(express.static(path.join(__dirname, 'frontend/dist')));
+
 // Маршрут для перевода текста песни
 app.post('/translate', async (req, res) => {
   const { text, to } = req.body;
@@ -210,6 +213,15 @@ app.get('/', (req, res) => {
       </body>
     </html>
   `);
+});
+
+// Для любых других роутов отдаем собранный фронтенд (SPA роутинг)
+app.get('*', (req, res, next) => {
+  // Пропускаем наши API роуты
+  if (req.path === '/radio' || req.path === '/radio.m3u' || req.path === '/translate') {
+    return next();
+  }
+  res.sendFile(path.join(__dirname, 'frontend/dist/index.html'));
 });
 
 // Запуск сервера
